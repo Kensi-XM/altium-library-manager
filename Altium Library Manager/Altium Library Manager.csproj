@@ -1,0 +1,67 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <RootNamespace>Altium_Library_Manager</RootNamespace>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <Version>1.0.0</Version>
+    <Product>Altium Library Manager</Product>
+    <Description>Browse and edit the Access databases of Altium DbLib libraries</Description>
+    <ApplicationIcon>Assets/app.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Help/Help.md" LogicalName="Altium_Library_Manager.Help.md" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4258.31" />
+    <PackageReference Include="OriginalCircuit.AltiumSharp" Version="1.0.2" />
+    <PackageReference Include="System.Data.OleDb" Version="10.0.14" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- OpenMcdf 2.3.0 comes transitively from AltiumSharp 1.0.2. Both advisories (hang on a malformed CFB file)
+         are fixed only in OpenMcdf 3.1.4+, which is API-incompatible with AltiumSharp 1.x. We only open our own libraries,
+         so the risk is acceptable; remove when moving to AltiumSharp 2.x (OriginalCircuit.Altium). -->
+    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-jxpf-xq2m-q525" />
+    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-5qwm-7pvp-w988" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Font used by the AltiumSharp renderer for text; the package doesn't copy it to the output folder -->
+    <None Include="$(NuGetPackageRoot)originalcircuit.altiumsharp\1.0.2\contentFiles\any\net6.0\font.ttf" Link="font.ttf" CopyToOutputDirectory="PreserveNewest" Visible="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 3D viewer in WebView2: three.js 0.186.1 + occt-import-js 0.0.23 (OpenCascade compiled to WebAssembly to read STEP).
+         Bundled locally so it works offline. -->
+    <None Update="Viewer3D\**" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!-- Supply-chain guard: the third-party viewer files must match the audited versions, otherwise the build fails.
+       Hashes are of the files as published on npm (three 0.186.1 by mrdoob, occt-import-js 0.0.23 by kovacsv); the npm
+       tarballs matched the registry's sha512 integrity, and the .wasm also matches the author's GitHub repo at the
+       published commit. When updating a library, re-verify it the same way and update the hashes here. -->
+  <ItemGroup>
+    <PinnedViewerFile Include="Viewer3D\lib\three.module.js" Sha256="9052042d676cb0fdc1ddfefe193053f34b7ac0513a616fdac4535d49987812ea" />
+    <PinnedViewerFile Include="Viewer3D\lib\three.core.js" Sha256="9edde002b066a9a05676a6127f67735b62baf399bdea529f2f7e31657da769e6" />
+    <PinnedViewerFile Include="Viewer3D\lib\OrbitControls.js" Sha256="3d79d07ecb686b4e5d93232eedab255331c1beef711e13164eaa1f68655a5f2b" />
+    <PinnedViewerFile Include="Viewer3D\lib\occt-import-js.js" Sha256="3fb44ce11d00611f9b3f3c5775d520ebab48930c1f08279b7b1316f05f0d3379" />
+    <PinnedViewerFile Include="Viewer3D\lib\occt-import-js.wasm" Sha256="33391fc9d94ea5c869a6718488bf0a9a464222bac9bdc764dfe1690cef281952" />
+  </ItemGroup>
+
+  <Target Name="VerifyViewerLibraries" BeforeTargets="BeforeBuild">
+    <Error Condition="!Exists('%(PinnedViewerFile.FullPath)')" Text="Missing 3D viewer file: %(PinnedViewerFile.Identity)" />
+    <GetFileHash Files="@(PinnedViewerFile)" Algorithm="SHA256">
+      <Output TaskParameter="Items" ItemName="_ViewerFileHash" />
+    </GetFileHash>
+    <!-- MSBuild compares strings case-insensitively, so hex case doesn't matter -->
+    <Error Condition="'%(_ViewerFileHash.FileHash)' != '%(_ViewerFileHash.Sha256)'"
+           Text="3D viewer file %(_ViewerFileHash.Identity) doesn't match the audited version (SHA-256 %(_ViewerFileHash.FileHash)). Re-audit it before updating the pinned hash." />
+  </Target>
+
+</Project>

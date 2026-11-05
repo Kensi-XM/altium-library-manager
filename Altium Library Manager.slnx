@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="Altium Library Manager/Altium Library Manager.csproj" />
+  <Project Path="Altium Library Manager.Tests/Altium Library Manager.Tests.csproj" />
+</Solution>

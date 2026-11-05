@@ -1,0 +1,76 @@
+<Window x:Class="Altium_Library_Manager.NewTableWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:Altium_Library_Manager"
+        Title="New table" Width="900" Height="640" MinWidth="680" MinHeight="460"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
+        Background="{DynamicResource WindowBackgroundBrush}" Closing="Window_Closing">
+    <!-- Same look as Options: own title bar, content in rounded cards (styles in App.xaml) -->
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="36" GlassFrameThickness="0,0,0,1" UseAeroCaptionButtons="False"
+                      ResizeBorderThickness="{x:Static SystemParameters.WindowResizeBorderThickness}" />
+    </WindowChrome.WindowChrome>
+
+    <DockPanel>
+        <local:DialogTitleBar DockPanel.Dock="Top" Icon="&#xE710;" Title="New table" />
+
+        <DockPanel DockPanel.Dock="Bottom" Margin="12,10,12,12">
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                <Button x:Name="CreateButton" Content="Create table" MinWidth="110" IsDefault="True" Click="Create_Click"
+                        Style="{DynamicResource AccentButtonStyle}" />
+                <Button Content="Cancel" Width="96" Margin="8,0,0,0" IsCancel="True" />
+            </StackPanel>
+            <Button DockPanel.Dock="Left" Content="Save fields as template…" Padding="12,4" Click="SaveAsTemplate_Click"
+                    ToolTip="Keep these fields as a new template, to make more tables like this one" />
+            <TextBlock x:Name="ErrorText" Style="{StaticResource ErrorText}" Margin="12,0,12,0" TextTrimming="CharacterEllipsis"
+                       TextWrapping="NoWrap" />
+        </DockPanel>
+
+        <Grid Margin="6,0,6,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="230" />
+                <ColumnDefinition Width="6" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <!-- What the table starts from: empty, or one of the templates -->
+            <local:ClippingBorder Grid.Column="0" Style="{StaticResource Card}">
+                <DockPanel>
+                    <Border DockPanel.Dock="Top" Style="{StaticResource PanelHeader}">
+                        <TextBlock Text="Start from" FontWeight="SemiBold" Margin="0,2" />
+                    </Border>
+                    <Button DockPanel.Dock="Bottom" Content="Manage templates…" Margin="8" Padding="10,4" HorizontalAlignment="Stretch"
+                            Click="ManageTemplates_Click" />
+                    <ListBox x:Name="Sources" BorderThickness="0" Background="Transparent" Padding="4"
+                             ItemContainerStyle="{StaticResource NavListItem}" SelectionChanged="Sources_SelectionChanged"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel>
+                                    <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Name}" />
+                                    <TextBlock Text="{Binding FieldCount}" FontSize="11"
+                                               Foreground="{DynamicResource MutedTextBrush}" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </local:ClippingBorder>
+
+            <local:ClippingBorder Grid.Column="2" Style="{StaticResource Card}">
+                <DockPanel Margin="20,16,20,16">
+                    <StackPanel DockPanel.Dock="Top">
+                        <TextBlock Text="New table" Style="{StaticResource PageTitle}" />
+                        <TextBlock Text="Table name" Style="{StaticResource SettingLabel}" Margin="0,0,0,4" />
+                        <TextBox x:Name="NameBox" TextChanged="NameBox_TextChanged" />
+                        <TextBlock x:Name="DatabaseText" Style="{StaticResource SettingHint}" />
+
+                        <TextBlock Text="Fields" Style="{StaticResource SettingLabel}" />
+                        <TextBlock x:Name="SourceText" Style="{StaticResource SettingHint}" Margin="0,0,0,10" />
+                    </StackPanel>
+                    <local:FieldsEditor x:Name="Editor" Changed="Editor_Changed" />
+                </DockPanel>
+            </local:ClippingBorder>
+        </Grid>
+    </DockPanel>
+</Window>

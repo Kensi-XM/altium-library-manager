@@ -1,0 +1,22 @@
+# Build output
+bin/
+obj/
+publish/
+installer/output/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+
+# Databases and libraries used while working on the app: they stay out of the repository
+*.accdb
+*.mdb
+*.laccdb
+*.ldb
+*.DbLib
+*.SchLib
+*.PcbLib
+
+# Logs
+*.log

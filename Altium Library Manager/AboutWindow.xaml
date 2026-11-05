@@ -1,0 +1,38 @@
+<Window x:Class="Altium_Library_Manager.AboutWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:Altium_Library_Manager"
+        Title="About" Width="520" SizeToContent="Height" ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False" Background="{DynamicResource WindowBackgroundBrush}">
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="36" GlassFrameThickness="0,0,0,1" UseAeroCaptionButtons="False" />
+    </WindowChrome.WindowChrome>
+
+    <DockPanel>
+        <local:DialogTitleBar DockPanel.Dock="Top" Title="About" />
+
+        <DockPanel DockPanel.Dock="Bottom" Margin="12,10,12,12">
+            <Button Content="Open data folder" Padding="12,4" Click="OpenFolder_Click"
+                    ToolTip="The folder of the settings, templates, element types and deleted tables" />
+            <Button Content="Copy details" Padding="12,4" Margin="8,0,0,0" Click="Copy_Click" ToolTip="Copy these details, to attach them to a question or a bug report" />
+            <Button Content="Close" Width="96" IsDefault="True" IsCancel="True" HorizontalAlignment="Right" Style="{DynamicResource AccentButtonStyle}" />
+        </DockPanel>
+
+        <local:ClippingBorder Style="{StaticResource Card}" Margin="6,0,6,0">
+            <StackPanel Margin="20,18,20,18">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock FontFamily="{StaticResource IconFont}" FontSize="34" Text="&#xE8F1;" VerticalAlignment="Center"
+                               Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" Margin="0,0,14,0" />
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="Altium Library Manager" Style="{StaticResource PageTitle}" Margin="0" />
+                        <TextBlock x:Name="VersionText" Foreground="{DynamicResource MutedTextBrush}" />
+                    </StackPanel>
+                </StackPanel>
+                <TextBlock Style="{StaticResource SettingHint}" Margin="0,12,0,0"
+                           Text="Browse and edit the Access databases of Altium DbLib libraries, with a preview of symbols, footprints and 3D models." />
+                <TextBlock Text="Details" Style="{StaticResource SettingLabel}" />
+                <TextBlock x:Name="DetailsText" TextWrapping="Wrap" LineHeight="20" />
+            </StackPanel>
+        </local:ClippingBorder>
+    </DockPanel>
+</Window>

@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Run with: dotnet run -c Debug (from this folder). Exit code 0 when everything passes.
+       Works on temporary databases of its own; it never opens the user's databases or settings. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <RootNamespace>Altium_Library_Manager.Tests</RootNamespace>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Altium Library Manager\Altium Library Manager.csproj" />
+  </ItemGroup>
+
+</Project>

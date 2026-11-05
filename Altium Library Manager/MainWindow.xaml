@@ -1,0 +1,650 @@
+﻿<Window x:Class="Altium_Library_Manager.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:Altium_Library_Manager"
+        mc:Ignorable="d"
+        Title="Altium Library Manager" Height="860" Width="1400"
+        Loaded="Window_Loaded" Closing="Window_Closing" PreviewKeyDown="Window_PreviewKeyDown"
+        SourceInitialized="Window_SourceInitialized" StateChanged="Window_StateChanged"
+        Background="{DynamicResource WindowBackgroundBrush}">
+    <!-- Own title bar (menu inside it): the client area extends over the standard caption. A 1 px glass frame keeps
+         the system shadow and the Windows 11 rounded corners. CaptionHeight is set from the title bar's height. -->
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="32" GlassFrameThickness="0,0,0,1" UseAeroCaptionButtons="False"
+                      ResizeBorderThickness="{x:Static SystemParameters.WindowResizeBorderThickness}" />
+    </WindowChrome.WindowChrome>
+    <Window.Resources>
+        <!-- Shared styles (IconButton, PanelHeader, CollapsedStrip, brushes) are in App.xaml -->
+
+        <!-- Grid cells (Details and every table tab). Fluent's cell has a 32 px minimum height, so in our compact rows
+             the focus border was cut off at the bottom, and it also shifted the text by a pixel. Here the focus
+             outline is the cell's own always-present border, inside its bounds. -->
+        <!-- Column headers: Fluent puts the two resize grippers of a column edge (8 px each, the right one of this
+             column and the left one of the next) inside the header padding, which left a dead gap right on the edge
+             with the resize cursor only beside it. Without padding the grippers meet at the edge: one 16 px zone
+             centered on the line. The title keeps its indent with its own margin. -->
+        <Style x:Key="GridColumnHeader" TargetType="DataGridColumnHeader" BasedOn="{StaticResource {x:Type DataGridColumnHeader}}">
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="ContentTemplate">
+                <Setter.Value>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding}" Margin="4,0,4,0" TextTrimming="CharacterEllipsis" />
+                    </DataTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Table rows: Fluent's template with the row background actually drawn (Fluent hard-codes it transparent),
+             so every other row can be shaded (Options → Tables; the grid's AlternationCount turns it on).
+             Based on Fluent's style by its key: Fluent has no {x:Type DataGridRow} style, so that would find the
+             classic Windows one, which paints every row white. -->
+
+        <Style x:Key="GridRow" TargetType="DataGridRow" BasedOn="{StaticResource DefaultDataGridRowStyle}">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="DataGridRow">
+                        <Border x:Name="DGR_Border" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}" SnapsToDevicePixels="True">
+                            <SelectiveScrollingGrid>
+                                <SelectiveScrollingGrid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </SelectiveScrollingGrid.ColumnDefinitions>
+                                <SelectiveScrollingGrid.RowDefinitions>
+                                    <RowDefinition Height="*" />
+                                    <RowDefinition Height="Auto" />
+                                </SelectiveScrollingGrid.RowDefinitions>
+                                <DataGridCellsPresenter Grid.Column="1" ItemsPanel="{TemplateBinding ItemsPanel}"
+                                                        SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}" />
+                                <DataGridDetailsPresenter Grid.Column="1" Grid.Row="1" Visibility="{TemplateBinding DetailsVisibility}"
+                                                          SelectiveScrollingGrid.SelectiveScrollingOrientation="Both" />
+                                <DataGridRowHeader Grid.RowSpan="2" SelectiveScrollingGrid.SelectiveScrollingOrientation="Vertical" />
+                            </SelectiveScrollingGrid>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="ItemsControl.AlternationIndex" Value="1">
+                    <Setter Property="Background" Value="{DynamicResource AlternateRowBrush}" />
+                </Trigger>
+                <!-- The current row (the grid selects cells, and its Tag holds the row of the current one): per row, not
+                     per cell, so it costs nothing while scrolling -->
+                <DataTrigger Value="True">
+                    <DataTrigger.Binding>
+                        <MultiBinding Converter="{x:Static local:SameRowConverter.Instance}">
+                            <Binding />
+                            <Binding Path="Tag" RelativeSource="{RelativeSource AncestorType=DataGrid}" />
+                        </MultiBinding>
+                    </DataTrigger.Binding>
+                    <Setter Property="Background" Value="{DynamicResource CurrentRowBrush}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="GridCell" TargetType="DataGridCell">
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <!-- One border per cell (as few elements as Fluent's own cell, since thousands are created while
+                         scrolling): its always-present 1 px border shows the focus without shifting the text -->
+                    <ControlTemplate TargetType="DataGridCell">
+                        <Border x:Name="Root" Background="Transparent" BorderBrush="Transparent" BorderThickness="1"
+                                SnapsToDevicePixels="True">
+                            <!-- Indented like the column headers -->
+                            <ContentPresenter VerticalAlignment="Center" Margin="2,0,3,0" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="{DynamicResource DataGridRowSelectedBackgroundThemeBrush}" />
+                                <!-- The fill stops at the border: in the same color, selected cells join up with no gaps -->
+                                <Setter TargetName="Root" Property="BorderBrush" Value="{DynamicResource DataGridRowSelectedBackgroundThemeBrush}" />
+                                <Setter Property="Foreground" Value="{DynamicResource DataGridRowSelectedForegroundThemeBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                                <Setter TargetName="Root" Property="BorderBrush" Value="{DynamicResource MutedTextBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- The text box of a cell being edited: fits the compact row (Fluent's text box is a 32 px touch target
+             with a clear button), on the input background with an accent underline like the other text boxes -->
+        <Style x:Key="GridEditingText" TargetType="TextBox">
+            <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
+            <Setter Property="CaretBrush" Value="{DynamicResource PrimaryTextBrush}" />
+            <Setter Property="Background" Value="{DynamicResource ControlFillColorInputActiveBrush}" />
+            <Setter Property="SelectionBrush" Value="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Grid Background="{TemplateBinding Background}">
+                            <!-- The text box keeps 2 px around its text; taken back, so the text doesn't jump on editing -->
+                            <ScrollViewer x:Name="PART_ContentHost" Focusable="False" VerticalAlignment="Center" Margin="-2,0"
+                                          HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Hidden" />
+                            <Border Height="1" VerticalAlignment="Bottom" Background="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Save / undo / redo in the title bar: icon buttons a bit larger than the panel ones -->
+        <Style x:Key="TitleBarIcon" TargetType="Button" BasedOn="{StaticResource IconButton}">
+            <Setter Property="Width" Value="28" />
+            <Setter Property="Height" Value="26" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
+            <Setter Property="ToolTipService.ShowOnDisabled" Value="True" />
+        </Style>
+
+        <!-- Compact File / View / Tools headers for the title bar. Fluent's top-level item has fixed margins that
+             make it about 48 px tall, which clipped its text in the 32 px bar. Only the headers use this; the items
+             in the drop-downs keep the Fluent style. -->
+        <Style x:Key="TitleBarMenuItem" TargetType="MenuItem">
+            <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Padding" Value="10,0" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="MenuItem">
+                        <Grid>
+                            <Border x:Name="Chrome" Background="{TemplateBinding Background}" CornerRadius="4" Padding="{TemplateBinding Padding}">
+                                <ContentPresenter ContentSource="Header" RecognizesAccessKey="True" VerticalAlignment="Center" />
+                            </Border>
+                            <Popup x:Name="PART_Popup" IsOpen="{TemplateBinding IsSubmenuOpen}" Placement="Bottom" HorizontalOffset="-12"
+                                   VerticalOffset="1" AllowsTransparency="True" Focusable="False" PopupAnimation="None">
+                                <Border Margin="12,0,12,18" Padding="0,3" CornerRadius="8" BorderThickness="1"
+                                        BorderBrush="{DynamicResource FlyoutBorderBrush}" Background="{DynamicResource FlyoutBackground}">
+                                    <Border.Effect>
+                                        <DropShadowEffect ShadowDepth="6" Direction="270" Opacity="0.25" BlurRadius="20" />
+                                    </Border.Effect>
+                                    <ScrollViewer CanContentScroll="True" VerticalScrollBarVisibility="Auto">
+                                        <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Cycle" KeyboardNavigation.TabNavigation="Cycle"
+                                                        Grid.IsSharedSizeScope="True" />
+                                    </ScrollViewer>
+                                </Border>
+                            </Popup>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource CaptionHoverBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsSubmenuOpen" Value="True">
+                                <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource CaptionHoverBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+
+        <!-- Table tab header: pin state, name, close button; drag to reorder, middle-click to close -->
+        <DataTemplate x:Key="TableTabHeader" DataType="{x:Type local:TableTab}">
+            <StackPanel Orientation="Horizontal" Background="Transparent"
+                        PreviewMouseLeftButtonDown="TabHeader_PreviewMouseLeftButtonDown"
+                        PreviewMouseMove="TabHeader_PreviewMouseMove"
+                        MouseUp="TabHeader_MouseUp"
+                        AllowDrop="True" Drop="TabHeader_Drop">
+                <StackPanel.ContextMenu>
+                    <ContextMenu>
+                        <MenuItem Header="{Binding PinMenuText}" Click="TabMenu_TogglePin" />
+                        <Separator />
+                        <MenuItem Header="Close" InputGestureText="Ctrl+W" Click="TabMenu_Close" />
+                        <MenuItem Header="Close other tabs" Click="TabMenu_CloseOthers" />
+                        <MenuItem Header="Close tabs to the right" Click="TabMenu_CloseToRight" />
+                        <MenuItem Header="Close all unpinned tabs" Click="TabMenu_CloseUnpinned" />
+                    </ContextMenu>
+                </StackPanel.ContextMenu>
+                <!-- A preview tab has its title in italics (see TableTab.IsPreview) -->
+                <TextBlock Text="{Binding Name}" VerticalAlignment="Center" MaxWidth="220" TextTrimming="CharacterEllipsis">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="ToolTip" Value="{Binding Name}" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsPreview}" Value="True">
+                                    <Setter Property="FontStyle" Value="Italic" />
+                                    <Setter Property="ToolTip" Value="Preview: replaced by the next table you click. Double-click to keep it open." />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+                <!-- Unsaved changes: a star after the name, outside it so a long trimmed name still shows it -->
+                <TextBlock Text=" *" VerticalAlignment="Center" ToolTip="Unsaved changes (Ctrl+S saves them)">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsDirty}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+                <Button Click="TabPinButton_Click" Margin="4,0,0,0" ToolTip="Unpin tab" Content="&#xE840;">
+                    <Button.Style>
+                        <Style TargetType="Button" BasedOn="{StaticResource IconButton}">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsPinned}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
+                <Button Click="TabCloseButton_Click" Margin="4,0,0,0" ToolTip="Close (middle-click)" Content="&#xE8BB;">
+                    <Button.Style>
+                        <Style TargetType="Button" BasedOn="{StaticResource IconButton}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsPinned}" Value="True">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
+            </StackPanel>
+        </DataTemplate>
+    </Window.Resources>
+
+    <!-- Padding while maximized: a maximized window extends past the screen edges by its resize border -->
+    <Border x:Name="WindowRoot">
+    <DockPanel x:Name="RootPanel">
+        <!-- Title bar: menu, title, caption buttons. Empty parts drag the window (WindowChrome caption);
+             interactive parts opt out with IsHitTestVisibleInChrome. -->
+        <Grid x:Name="TitleBar" DockPanel.Dock="Top" Height="32" SizeChanged="TitleBar_SizeChanged">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" FontFamily="{StaticResource IconFont}" FontSize="15" Text="&#xE8F1;"
+                       Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" VerticalAlignment="Center" Margin="12,0,6,0" />
+        <Menu Grid.Column="1" VerticalAlignment="Center" Background="Transparent" WindowChrome.IsHitTestVisibleInChrome="True"
+              ItemContainerStyle="{StaticResource TitleBarMenuItem}">
+            <MenuItem Header="_File">
+                <MenuItem Header="_Open database…" InputGestureText="Ctrl+O" Click="OpenDatabase_Click" />
+                <MenuItem x:Name="NewTableMenu" Header="_New table…" InputGestureText="Ctrl+N" Click="NewTable_Click" IsEnabled="False" />
+                <Separator />
+                <MenuItem x:Name="SaveMenu" Header="_Save table" InputGestureText="Ctrl+S" Click="Save_Click" IsEnabled="False"
+                          ToolTip="Write the changes to the active table into the database" />
+                <MenuItem x:Name="SaveAllMenu" Header="Save _all" InputGestureText="Ctrl+Shift+S" Click="SaveAll_Click" IsEnabled="False" />
+                <Separator />
+                <MenuItem Header="E_xit" InputGestureText="Alt+F4" Click="Exit_Click" />
+            </MenuItem>
+            <MenuItem Header="_Edit" SubmenuOpened="EditMenu_SubmenuOpened">
+                <MenuItem x:Name="UndoMenu" Header="_Undo" InputGestureText="Ctrl+Z" Click="Undo_Click" />
+                <MenuItem x:Name="RedoMenu" Header="_Redo" InputGestureText="Ctrl+Y" Click="Redo_Click" />
+                <Separator />
+                <MenuItem x:Name="EditRowsMenu" Header="_Edit rows" InputGestureText="Ctrl+E" IsCheckable="True" Click="EditRows_Click"
+                          ToolTip="Let the rows of the active table be changed (tables open read-only)" />
+                <MenuItem x:Name="AddRowMenu" Header="_Add row" InputGestureText="Ctrl+Plus" Click="AddRowMenu_Click" />
+                <MenuItem x:Name="AddElementsMenu" Header="Add e_lements…" Click="AddElementsMenu_Click"
+                          ToolTip="Add many similar components at once, differing in their value" />
+                <MenuItem x:Name="DuplicateRowMenu" Header="_Duplicate row" InputGestureText="Ctrl+D" Click="DuplicateRowMenu_Click" />
+                <MenuItem x:Name="DeleteRowsMenu" Header="De_lete rows" InputGestureText="Ctrl+Minus" Click="DeleteRowsMenu_Click" />
+                <Separator />
+                <MenuItem x:Name="ReloadMenu" Header="Re_load table" InputGestureText="F5" Click="ReloadMenu_Click" />
+            </MenuItem>
+            <MenuItem Header="_View">
+                <!-- Layout presets: which panel goes into the center (2), right (4) and bottom (3) areas.
+                     Tags are indexes into MainWindow.Layouts -->
+                <MenuItem Header="_Layout">
+                    <MenuItem x:Name="LayoutMenu0" Header="_Side preview" InputGestureText="Ctrl+1" Tag="0" IsCheckable="True"
+                              ToolTip="Table in the center, preview on the right, row at the bottom" Click="LayoutMenu_Click" />
+                    <MenuItem x:Name="LayoutMenu1" Header="_Row" InputGestureText="Ctrl+2" Tag="1" IsCheckable="True"
+                              ToolTip="Row in the center, preview on the right, table at the bottom" Click="LayoutMenu_Click" />
+                    <MenuItem x:Name="LayoutMenu2" Header="_Table" InputGestureText="Ctrl+3" Tag="2" IsCheckable="True"
+                              ToolTip="Table in the center, row on the right, preview at the bottom" Click="LayoutMenu_Click" />
+                    <MenuItem x:Name="LayoutMenu3" Header="_Preview" InputGestureText="Ctrl+4" Tag="3" IsCheckable="True"
+                              ToolTip="Preview in the center, row on the right, table at the bottom" Click="LayoutMenu_Click" />
+                </MenuItem>
+                <MenuItem Header="T_heme">
+                    <MenuItem x:Name="ThemeSystemMenu" Header="_System" Tag="System" IsCheckable="True" Click="ThemeMenu_Click" />
+                    <MenuItem x:Name="ThemeLightMenu" Header="_Light" Tag="Light" IsCheckable="True" Click="ThemeMenu_Click" />
+                    <MenuItem x:Name="ThemeDarkMenu" Header="_Dark" Tag="Dark" IsCheckable="True" Click="ThemeMenu_Click" />
+                </MenuItem>
+                <Separator />
+                <MenuItem x:Name="DatabasePanelMenu" Header="_Database panel" IsCheckable="True" Click="DatabasePanelMenu_Click" />
+            </MenuItem>
+            <MenuItem Header="_Tools">
+                <MenuItem Header="Table _templates…" Click="Templates_Click" />
+                <MenuItem Header="_Deleted tables…" Click="DeletedTables_Click"
+                          ToolTip="Tables you deleted: restore them, or delete their copies for good" />
+                <Separator />
+                <MenuItem Header="_Options…" InputGestureText="Ctrl+," Click="Options_Click" />
+            </MenuItem>
+            <MenuItem Header="_Help">
+                <MenuItem Header="_View help" InputGestureText="F1" Click="Help_Click" />
+                <MenuItem Header="_Keyboard shortcuts" Tag="shortcuts" Click="Help_Click" />
+                <MenuItem Header="_Solving problems" Tag="problems" Click="Help_Click" />
+                <Separator />
+                <MenuItem Header="_About…" Click="About_Click" />
+            </MenuItem>
+        </Menu>
+
+            <!-- Save, undo and redo for the active table, as in a document editor (enabled by UpdateTableCommands) -->
+            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" WindowChrome.IsHitTestVisibleInChrome="True">
+                <Border Width="1" Height="16" Margin="6,0,6,0" Background="{DynamicResource PanelBorderBrush}" />
+                <Button x:Name="SaveButton" Style="{StaticResource TitleBarIcon}" Content="&#xE74E;" Click="Save_Click" ToolTip="Save table (Ctrl+S)" />
+                <Button x:Name="UndoButton" Style="{StaticResource TitleBarIcon}" Content="&#xE7A7;" Click="Undo_Click" ToolTip="Undo (Ctrl+Z)" />
+                <Button x:Name="RedoButton" Style="{StaticResource TitleBarIcon}" Content="&#xE7A6;" Click="Redo_Click" ToolTip="Redo (Ctrl+Y)" />
+            </StackPanel>
+
+            <TextBlock x:Name="TitleText" Grid.Column="3" Text="{Binding Title, RelativeSource={RelativeSource AncestorType=Window}}"
+                       VerticalAlignment="Center" HorizontalAlignment="Center" Margin="12,0" TextTrimming="CharacterEllipsis"
+                       FontSize="12" Foreground="{DynamicResource MutedTextBrush}" />
+
+            <StackPanel Grid.Column="4" Orientation="Horizontal" WindowChrome.IsHitTestVisibleInChrome="True">
+                <Button Style="{StaticResource CaptionButton}" Content="&#xE921;" ToolTip="Minimize" Click="Minimize_Click" />
+                <Button x:Name="MaximizeButton" Style="{StaticResource CaptionButton}" Content="&#xE922;" ToolTip="Maximize"
+                        Click="MaximizeRestore_Click" />
+                <Button Style="{StaticResource CaptionButton}" Content="&#xE8BB;" ToolTip="Close" Click="Exit_Click">
+                    <Button.Resources>
+                        <SolidColorBrush x:Key="CaptionHoverBrush" Color="#FFC42B1C" />
+                        <SolidColorBrush x:Key="CaptionPressedBrush" Color="#FFC83C31" />
+                        <SolidColorBrush x:Key="CaptionHoverForegroundBrush" Color="White" />
+                    </Button.Resources>
+                </Button>
+            </StackPanel>
+        </Grid>
+
+        <!-- Status line: plain text under the cards. (Fluent's StatusBar control has its own frame, which overlapped
+             the bottom of the cards.) Screen readers announce its changes. -->
+        <TextBlock x:Name="StatusText" DockPanel.Dock="Bottom" Margin="12,5,12,6" TextTrimming="CharacterEllipsis"
+                   Foreground="{DynamicResource MutedTextBrush}" AutomationProperties.LiveSetting="Polite"
+                   Text="Open an Access database (DbLib)" />
+
+        <Grid Margin="6,0,6,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition x:Name="DatabaseColumn" Width="260" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" MinWidth="300" />
+            </Grid.ColumnDefinitions>
+
+            <!-- 1: database and its tables -->
+            <Grid Grid.Column="0">
+                <local:ClippingBorder x:Name="DatabasePanel" Style="{StaticResource Card}">
+                <DockPanel>
+                    <Border DockPanel.Dock="Top" Style="{StaticResource PanelHeader}">
+                        <DockPanel>
+                            <Button DockPanel.Dock="Right" Style="{StaticResource IconButton}" Content="&#xE76B;"
+                                    ToolTip="Collapse" Click="CollapseDatabasePanel_Click" />
+                            <TextBlock Text="Database" FontWeight="SemiBold" VerticalAlignment="Center" />
+                        </DockPanel>
+                    </Border>
+                    <StackPanel DockPanel.Dock="Top" Margin="6">
+                        <StackPanel Orientation="Horizontal">
+                            <Button Content="Open database…" Padding="10,3" Click="OpenDatabase_Click" />
+                            <Button x:Name="NewTableButton" Padding="10,3" Margin="6,0,0,0" Click="NewTable_Click" IsEnabled="False"
+                                    ToolTip="Add a table to the database, empty or from a template (Ctrl+N)">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock FontFamily="{StaticResource IconFont}" Text="&#xE710;" FontSize="12" VerticalAlignment="Center" />
+                                    <TextBlock Text="New table" Margin="6,0,0,0" />
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+                        <TextBlock x:Name="DatabasePathText" Margin="0,6,0,0" Foreground="{DynamicResource MutedTextBrush}" TextTrimming="CharacterEllipsis"
+                                   Text="No database open" />
+                        <Grid Margin="0,8,0,0">
+                            <TextBox x:Name="TableFilter" Padding="2" TextChanged="TableFilter_TextChanged" PreviewKeyDown="TableFilter_PreviewKeyDown"
+                                     ToolTip="Ctrl+F. Up / Down pick a table, Enter opens it, Esc clears the filter" />
+                            <TextBlock Text="Filter tables (Ctrl+F)" Foreground="{DynamicResource MutedTextBrush}" Margin="5,0,0,0" VerticalAlignment="Center"
+                                       IsHitTestVisible="False">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Text, ElementName=TableFilter}" Value="">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </Grid>
+                    </StackPanel>
+                    <ListBox x:Name="TableList" Margin="2,0,2,4" BorderThickness="0" Background="Transparent"
+                             VirtualizingPanel.IsVirtualizing="True" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             PreviewMouseLeftButtonUp="TableList_PreviewMouseLeftButtonUp" MouseDoubleClick="TableList_MouseDoubleClick" KeyDown="TableList_KeyDown"
+                             ToolTip="Click to preview the table, double-click to keep it open in a tab"
+                             ContextMenuOpening="TableList_ContextMenuOpening">
+                        <ListBox.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem x:Name="TableMenuOpen" Header="Open in a tab" Click="TableMenu_Open" />
+                                <Separator />
+                                <MenuItem x:Name="TableMenuNew" Header="New table…" InputGestureText="Ctrl+N" Click="NewTable_Click" />
+                                <MenuItem x:Name="TableMenuSaveTemplate" Header="Save as template…" Click="TableMenu_SaveAsTemplate"
+                                          ToolTip="Keep this table's fields as a template, to make more tables like it" />
+                                <Separator />
+                                <MenuItem x:Name="TableMenuDelete" Header="Delete table…" InputGestureText="Del" Click="TableMenu_Delete"
+                                          ToolTip="Delete the table and all its rows from the database (asks first)" />
+                            </ContextMenu>
+                        </ListBox.ContextMenu>
+                        <!-- Long names are trimmed to the panel width (no horizontal scroll bar over the items) -->
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding}" TextTrimming="CharacterEllipsis" ToolTip="{Binding}" />
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                        <!-- Compact items (Fluent's are tall touch targets), styled like the rest of the app (App.xaml) -->
+                        <ListBox.ItemContainerStyle>
+                            <Style TargetType="ListBoxItem" BasedOn="{StaticResource NavListItem}">
+                                <Setter Property="Padding" Value="10,3" />
+                            </Style>
+                        </ListBox.ItemContainerStyle>
+                    </ListBox>
+                </DockPanel>
+                </local:ClippingBorder>
+                <Button x:Name="DatabaseStrip" Style="{StaticResource CollapsedStrip}" Visibility="Collapsed"
+                        HorizontalAlignment="Left" ToolTip="Expand the database panel" Click="ExpandDatabasePanel_Click">
+                    <StackPanel>
+                        <TextBlock FontFamily="{StaticResource IconFont}" FontSize="10" Text="&#xE76C;" HorizontalAlignment="Center" />
+                        <TextBlock Text="Database" Margin="0,8,0,0">
+                            <TextBlock.LayoutTransform>
+                                <RotateTransform Angle="90" />
+                            </TextBlock.LayoutTransform>
+                        </TextBlock>
+                    </StackPanel>
+                </Button>
+            </Grid>
+
+            <GridSplitter x:Name="DatabaseSplitter" Grid.Column="1" Width="6" HorizontalAlignment="Stretch"
+                          ResizeBehavior="PreviousAndNext" Style="{StaticResource CardSplitter}"
+                          DragCompleted="DatabaseSplitter_DragCompleted" />
+
+
+            <!-- Work area: three slots (center 2, right 4, bottom 3). The panels always stay children of this grid and
+                 a layout preset only changes their Grid.Row/Column, so switching is instant and nothing is rebuilt
+                 (the 3D view is a native WebView2 window that would be recreated if it were re-parented). -->
+            <Grid x:Name="WorkArea" Grid.Column="2" SizeChanged="WorkArea_SizeChanged">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*" MinHeight="120" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition x:Name="BottomRow" Height="320" />
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" MinWidth="200" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition x:Name="RightColumn" Width="320" />
+                </Grid.ColumnDefinitions>
+
+                <GridSplitter x:Name="RightSplitter" Grid.Row="0" Grid.Column="1" Width="6" HorizontalAlignment="Stretch"
+                              ResizeBehavior="PreviousAndNext" Style="{StaticResource CardSplitter}"
+                              DragCompleted="SlotSplitter_DragCompleted" />
+                <GridSplitter x:Name="BottomSplitter" Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3" Height="6"
+                              HorizontalAlignment="Stretch" ResizeDirection="Rows" ResizeBehavior="PreviousAndNext"
+                              Style="{StaticResource CardSplitter}" DragCompleted="SlotSplitter_DragCompleted" />
+
+                <!-- Open tables as tabs -->
+                <local:PanelFrame x:Name="TablesFrame" Title="Tables" ShowHeaderInCenter="False">
+                        <Grid>
+                        <TabControl x:Name="TableTabs" ItemTemplate="{StaticResource TableTabHeader}"
+                                    SelectionChanged="TableTabs_SelectionChanged">
+                            <!-- All tabs in one row: it scrolls horizontally, with arrows and a list of all tabs
+                                 shown when they don't fit -->
+                            <TabControl.Template>
+                                <ControlTemplate TargetType="TabControl">
+                                    <DockPanel>
+                                        <!-- The tab strip is the card's header -->
+                                        <Border DockPanel.Dock="Top" Background="{DynamicResource PanelHeaderBrush}"
+                                                BorderBrush="{DynamicResource PanelBorderBrush}" BorderThickness="0,0,0,1" Padding="2,2,4,0">
+                                        <DockPanel>
+                                            <StackPanel x:Name="TabNavigation" DockPanel.Dock="Right" Orientation="Horizontal"
+                                                        VerticalAlignment="Center" Margin="2,0,0,0" Visibility="Collapsed">
+                                                <Button x:Name="ScrollTabsLeft" Style="{StaticResource IconButton}" Content="&#xE76B;"
+                                                        ToolTip="Scroll tabs left" Click="ScrollTabsLeft_Click" />
+                                                <Button x:Name="ScrollTabsRight" Style="{StaticResource IconButton}" Content="&#xE76C;"
+                                                        ToolTip="Scroll tabs right" Click="ScrollTabsRight_Click" />
+                                                <Button Style="{StaticResource IconButton}" Content="&#xE70D;"
+                                                        ToolTip="All open tabs" Click="TabListButton_Click" />
+                                            </StackPanel>
+                                            <ScrollViewer x:Name="TabScroller" HorizontalScrollBarVisibility="Hidden"
+                                                          VerticalScrollBarVisibility="Disabled" CanContentScroll="False"
+                                                          ScrollChanged="TabScroller_ScrollChanged">
+                                                <StackPanel Orientation="Horizontal" IsItemsHost="True" />
+                                            </ScrollViewer>
+                                        </DockPanel>
+                                        </Border>
+                                        <Border>
+                                            <!-- The name is required: UI Automation (screen readers) finds the
+                                                 selected tab's content through this template part -->
+                                            <ContentPresenter x:Name="PART_SelectedContentHost" ContentSource="SelectedContent" />
+                                        </Border>
+                                    </DockPanel>
+                                </ControlTemplate>
+                            </TabControl.Template>
+                            <TabControl.ContentTemplate>
+                                <!-- Each tab keeps its own view: toolbar and DataGrid (see TableTab) -->
+                                <DataTemplate DataType="{x:Type local:TableTab}">
+                                    <ContentPresenter Content="{Binding View}" />
+                                </DataTemplate>
+                            </TabControl.ContentTemplate>
+                        </TabControl>
+                        <TextBlock x:Name="NoTabsHint" Text="Open a database and pick a table on the left"
+                                   Foreground="{DynamicResource MutedTextBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Grid>
+                </local:PanelFrame>
+
+                <!-- Fields of the selected row -->
+                <local:PanelFrame x:Name="DetailsFrame" Title="Details">
+                            <!-- Values can be typed in while the table's Edit is on (DetailsGrid_BeginningEdit) -->
+                            <DataGrid x:Name="DetailsGrid" SizeChanged="DetailsGrid_SizeChanged" AutoGenerateColumns="False" HeadersVisibility="Column"
+                                      CanUserAddRows="False" CanUserDeleteRows="False"
+                                      BeginningEdit="DetailsGrid_BeginningEdit" CellEditEnding="DetailsGrid_CellEditEnding"
+                                      SelectionChanged="DetailsGrid_SelectionChanged"
+                                      PreviewMouseLeftButtonDown="DetailsGrid_PreviewMouseLeftButtonDown" PreviewMouseMove="DetailsGrid_PreviewMouseMove"
+                                      SelectionUnit="FullRow" GridLinesVisibility="Horizontal" BorderThickness="0" Background="Transparent"
+                                      CellStyle="{StaticResource GridCell}" ColumnHeaderStyle="{StaticResource GridColumnHeader}"
+                                      HorizontalGridLinesBrush="{DynamicResource PanelHeaderBrush}" CanUserSortColumns="False" RowHeight="22"
+                                      ClipboardCopyMode="ExcludeHeader">
+                                <DataGrid.Columns>
+                                    <!-- Fits the field names, up to part of the panel width (see DetailsGrid_SizeChanged) -->
+                                    <DataGridTextColumn x:Name="DetailsFieldColumn" Header="Field" Binding="{Binding Name}" Width="Auto" MinWidth="110">
+                                        <DataGridTextColumn.ElementStyle>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Foreground" Value="{DynamicResource MutedTextBrush}" />
+                                                <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+                                                <Setter Property="ToolTip" Value="{Binding Name}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=DataGridRow}}" Value="True">
+                                                        <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </DataGridTextColumn.ElementStyle>
+                                    </DataGridTextColumn>
+                                    <!-- Paths and links: a button to pick the file, Refs: to pick from the library (see FieldLinks) -->
+                                    <DataGridTemplateColumn Width="26" CanUserResize="False" IsReadOnly="True">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate DataType="{x:Type local:RowField}">
+                                                <Button Content="{Binding BrowseGlyph}" Click="DetailsBrowse_Click" ToolTip="{Binding BrowseTip}"
+                                                        ToolTipService.ShowOnDisabled="True" IsEnabled="{Binding CanBrowse}">
+                                                    <Button.Style>
+                                                        <Style TargetType="Button" BasedOn="{StaticResource IconButton}">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding HasBrowse}" Value="True">
+                                                                    <Setter Property="Visibility" Value="Visible" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Button.Style>
+                                                </Button>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                    <!-- A typed value is applied to the row by DetailsGrid_CellEditEnding (through the table's history);
+                                         the details then show the row's value again. Not a one-way binding: the grid
+                                         takes such a column as read-only. -->
+                                    <DataGridTextColumn x:Name="DetailsValueColumn" Header="Value" Binding="{Binding Value}" Width="*"
+                                                        EditingElementStyle="{StaticResource GridEditingText}">
+                                        <DataGridTextColumn.ElementStyle>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+                                                <Setter Property="ToolTip" Value="{Binding Value}" />
+                                            </Style>
+                                        </DataGridTextColumn.ElementStyle>
+                                    </DataGridTextColumn>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                </local:PanelFrame>
+
+                <!-- Symbol / footprint / 3D -->
+                <local:PanelFrame x:Name="PreviewFrame" Title="Preview">
+                        <local:PreviewPanel x:Name="Preview" />
+                </local:PanelFrame>
+
+                <!-- The components of a library, to pick a Ref field's value from (ShowRefPicker). A popup rather than a
+                     menu: a library can hold hundreds of them, so it has a filter and a virtualized list. -->
+                <Popup x:Name="RefPicker" StaysOpen="False" AllowsTransparency="True" Placement="Bottom" PopupAnimation="None">
+                    <Border Width="360" Margin="0,2,10,14" Padding="6" CornerRadius="8" BorderThickness="1"
+                            BorderBrush="{DynamicResource FlyoutBorderBrush}" Background="{DynamicResource FlyoutBackground}">
+                        <Border.Effect>
+                            <DropShadowEffect ShadowDepth="4" Direction="270" Opacity="0.25" BlurRadius="12" />
+                        </Border.Effect>
+                        <DockPanel>
+                            <TextBox x:Name="RefFilter" DockPanel.Dock="Top" Padding="2" TextChanged="RefFilter_TextChanged"
+                                     PreviewKeyDown="RefFilter_PreviewKeyDown" AutomationProperties.Name="Filter components"
+                                     ToolTip="Type to filter. Up / Down pick, Enter applies, Esc closes" />
+                            <TextBlock x:Name="RefSource" DockPanel.Dock="Top" Margin="2,6,2,4" Foreground="{DynamicResource MutedTextBrush}"
+                                       TextTrimming="CharacterEllipsis" />
+                            <ListBox x:Name="RefList" MaxHeight="300" BorderThickness="0" Background="Transparent"
+                                     VirtualizingPanel.IsVirtualizing="True" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                     PreviewMouseLeftButtonUp="RefList_PreviewMouseLeftButtonUp">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding}" TextTrimming="CharacterEllipsis" ToolTip="{Binding}" />
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                                <ListBox.ItemContainerStyle>
+                                    <Style TargetType="ListBoxItem" BasedOn="{StaticResource NavListItem}">
+                                        <Setter Property="Padding" Value="10,3" />
+                                    </Style>
+                                </ListBox.ItemContainerStyle>
+                            </ListBox>
+                        </DockPanel>
+                    </Border>
+                </Popup>
+            </Grid>
+        </Grid>
+    </DockPanel>
+    </Border>
+</Window>

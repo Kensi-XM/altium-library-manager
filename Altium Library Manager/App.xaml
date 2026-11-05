@@ -1,0 +1,256 @@
+﻿<Application x:Class="Altium_Library_Manager.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:Altium_Library_Manager"
+             StartupUri="MainWindow.xaml">
+    <Application.Resources>
+        <FontFamily x:Key="IconFont">Segoe Fluent Icons, Segoe MDL2 Assets</FontFamily>
+        <!-- Theme-dependent brushes; ThemeManager replaces them when the theme changes (use DynamicResource) -->
+        <SolidColorBrush x:Key="WindowBackgroundBrush" Color="#FFF3F3F3" />
+        <SolidColorBrush x:Key="PanelHeaderBrush" Color="#FFEDEEF0" />
+        <SolidColorBrush x:Key="PanelBorderBrush" Color="#FFD5D7DB" />
+        <SolidColorBrush x:Key="ContentBackgroundBrush" Color="White" />
+        <SolidColorBrush x:Key="AlternateRowBrush" Color="#FFF4F5F7" />
+        <SolidColorBrush x:Key="MutedTextBrush" Color="Gray" />
+        <SolidColorBrush x:Key="PrimaryTextBrush" Color="#FF1B1B1B" />
+        <SolidColorBrush x:Key="IconForegroundBrush" Color="#FF444649" />
+        <SolidColorBrush x:Key="IconHoverBrush" Color="#FFDDDFE3" />
+        <SolidColorBrush x:Key="IconPressedBrush" Color="#FFCBCED3" />
+
+        <!-- Small flat icon button used in panel headers and tab headers. Own template rather than the Fluent button's:
+             that one is sized for large buttons (min size, padding), which pushed the glyphs off center -->
+        <Style x:Key="IconButton" TargetType="Button">
+            <Setter Property="FontFamily" Value="{StaticResource IconFont}" />
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="Width" Value="20" />
+            <Setter Property="Height" Value="20" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource IconForegroundBrush}" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Chrome" Background="{TemplateBinding Background}" CornerRadius="3">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource IconHoverBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource IconPressedBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.35" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <SolidColorBrush x:Key="CaptionHoverBrush" Color="#18000000" />
+        <SolidColorBrush x:Key="CaptionPressedBrush" Color="#10000000" />
+        <SolidColorBrush x:Key="CaptionHoverForegroundBrush" Color="#FF1B1B1B" />
+
+        <!-- Minimize / maximize / close in the custom title bar, sized like the Windows ones. Tag "Hover" / "Pressed"
+             show the states for the maximize button while Windows owns its mouse input (snap layouts flyout). -->
+        <Style x:Key="CaptionButton" TargetType="Button">
+            <Setter Property="FontFamily" Value="{StaticResource IconFont}" />
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="Width" Value="46" />
+            <Setter Property="Height" Value="32" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="IsTabStop" Value="False" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Chrome" Background="{TemplateBinding Background}">
+                            <ContentPresenter x:Name="Glyph" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                              TextElement.Foreground="{TemplateBinding Foreground}" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource CaptionHoverBrush}" />
+                                <Setter TargetName="Glyph" Property="TextElement.Foreground" Value="{DynamicResource CaptionHoverForegroundBrush}" />
+                            </Trigger>
+                            <Trigger Property="Tag" Value="Hover">
+                                <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource CaptionHoverBrush}" />
+                                <Setter TargetName="Glyph" Property="TextElement.Foreground" Value="{DynamicResource CaptionHoverForegroundBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource CaptionPressedBrush}" />
+                            </Trigger>
+                            <Trigger Property="Tag" Value="Pressed">
+                                <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource CaptionPressedBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Every panel is a card: one rounded outline around its header and content; inner controls have no
+             borders of their own. The gaps between cards are the (invisible) splitters. -->
+        <CornerRadius x:Key="CardRadius">6</CornerRadius>
+        <Style x:Key="Card" TargetType="local:ClippingBorder">
+            <Setter Property="CornerRadius" Value="{StaticResource CardRadius}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BorderBrush" Value="{DynamicResource PanelBorderBrush}" />
+            <Setter Property="Background" Value="{DynamicResource ContentBackgroundBrush}" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+        </Style>
+
+        <!-- Splitters between the cards: transparent, only the resize cursor shows them -->
+        <Style x:Key="CardSplitter" TargetType="GridSplitter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="GridSplitter">
+                        <Border Background="{TemplateBinding Background}" />
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Items of navigation-like lists (the table list, the Options categories): the selected item gets the same soft
+             accent tint as selected table rows plus a small accent bar, as in Windows 11 Settings, instead of Fluent's
+             solid accent fill -->
+        <Style x:Key="NavListItem" TargetType="ListBoxItem">
+            <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
+            <Setter Property="Padding" Value="10,5" />
+            <Setter Property="Margin" Value="0,1" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Grid>
+                            <Border x:Name="Chrome" Background="Transparent" CornerRadius="4" Padding="{TemplateBinding Padding}"
+                                    BorderThickness="1" BorderBrush="Transparent">
+                                <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" />
+                            </Border>
+                            <Border x:Name="Indicator" Width="3" Height="16" CornerRadius="1.5" HorizontalAlignment="Left"
+                                    VerticalAlignment="Center" Background="{DynamicResource AccentTextFillColorPrimaryBrush}"
+                                    Visibility="Collapsed" />
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource CaptionHoverBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource DataGridRowSelectedBackgroundThemeBrush}" />
+                                <Setter TargetName="Indicator" Property="Visibility" Value="Visible" />
+                            </Trigger>
+                            <!-- Keyboard focus (Tab / arrow keys) gets an outline -->
+                            <MultiTrigger>
+                                <MultiTrigger.Conditions>
+                                    <Condition Property="IsKeyboardFocused" Value="True" />
+                                    <Condition Property="Selector.IsSelectionActive" Value="True" />
+                                </MultiTrigger.Conditions>
+                                <Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource PanelBorderBrush}" />
+                            </MultiTrigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Header of a collapsible panel (inside its card) -->
+        <Style x:Key="PanelHeader" TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource PanelHeaderBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource PanelBorderBrush}" />
+            <Setter Property="BorderThickness" Value="0,0,0,1" />
+            <Setter Property="Padding" Value="8,3,4,3" />
+        </Style>
+
+        <!-- Thin vertical strip shown instead of a collapsed side panel; click to expand -->
+        <Style x:Key="CollapsedStrip" TargetType="Button">
+            <Setter Property="Background" Value="{DynamicResource PanelHeaderBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource PanelBorderBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
+            <Setter Property="Width" Value="24" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Chrome" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="1" Padding="0,8" CornerRadius="{StaticResource CardRadius}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Top" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource IconHoverBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Text in the dialogs (Options, New table, Table templates) -->
+        <Style x:Key="PageTitle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="18" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Margin" Value="0,0,0,10" />
+        </Style>
+        <Style x:Key="SettingLabel" TargetType="TextBlock">
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Margin" Value="0,14,0,4" />
+        </Style>
+        <Style x:Key="SettingHint" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource MutedTextBrush}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Margin" Value="0,4,0,0" />
+        </Style>
+        <!-- Problems that keep a dialog from going ahead (shown next to its buttons) -->
+        <Style x:Key="ErrorText" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+
+        <!-- Work area panel frame (see PanelFrame.cs) -->
+        <Style TargetType="local:PanelFrame">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="local:PanelFrame">
+                        <Grid>
+                            <local:ClippingBorder x:Name="PART_Expanded" Style="{StaticResource Card}">
+                                <DockPanel>
+                                    <Border x:Name="PART_Header" DockPanel.Dock="Top" Style="{StaticResource PanelHeader}">
+                                        <DockPanel>
+                                            <Button x:Name="PART_Collapse" DockPanel.Dock="Right" Style="{StaticResource IconButton}" />
+                                            <TextBlock x:Name="PART_Title" FontWeight="SemiBold" VerticalAlignment="Center"
+                                                       TextTrimming="CharacterEllipsis" />
+                                        </DockPanel>
+                                    </Border>
+                                    <ContentPresenter x:Name="PART_Body" />
+                                </DockPanel>
+                            </local:ClippingBorder>
+
+                            <!-- A collapsed panel in the right slot becomes a thin vertical strip -->
+                            <Button x:Name="PART_Strip" Style="{StaticResource CollapsedStrip}" Visibility="Collapsed"
+                                    HorizontalAlignment="Right">
+                                <StackPanel>
+                                    <TextBlock FontFamily="{StaticResource IconFont}" FontSize="10" Text="&#xE76B;"
+                                               HorizontalAlignment="Center" />
+                                    <TextBlock x:Name="PART_StripText" Margin="0,8,0,0">
+                                        <TextBlock.LayoutTransform>
+                                            <RotateTransform Angle="90" />
+                                        </TextBlock.LayoutTransform>
+                                    </TextBlock>
+                                </StackPanel>
+                            </Button>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Application.Resources>
+</Application>

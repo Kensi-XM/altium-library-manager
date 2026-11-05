@@ -1,0 +1,116 @@
+<UserControl x:Class="Altium_Library_Manager.PreviewPanel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
+             xmlns:local="clr-namespace:Altium_Library_Manager"
+             Loaded="Panel_Loaded" IsVisibleChanged="Panel_IsVisibleChanged">
+    <UserControl.Resources>
+        <!-- One-line caption of each view: title, then the library file (or 3D status) in gray. Smaller than the
+             panel titles, so it reads as a label of the view rather than another heading. -->
+        <Style x:Key="HeaderTitle" TargetType="TextBlock">
+            <Setter Property="DockPanel.Dock" Value="Left" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        </Style>
+        <Style x:Key="HeaderSource" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="{DynamicResource MutedTextBrush}" />
+            <Setter Property="Margin" Value="6,0,0,0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        </Style>
+        <Style x:Key="Header" TargetType="DockPanel">
+            <Setter Property="DockPanel.Dock" Value="Top" />
+            <Setter Property="MinHeight" Value="20" />
+            <Setter Property="Margin" Value="1,0,0,3" />
+        </Style>
+        <!-- Picker in a caption (symbol part, alternative footprint): compact, so the caption keeps its height;
+             hidden until there is something to pick -->
+        <Style x:Key="HeaderCombo" TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
+            <Setter Property="DockPanel.Dock" Value="Right" />
+            <Setter Property="Visibility" Value="Collapsed" />
+            <Setter Property="MinWidth" Value="80" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="Height" Value="24" />
+            <Setter Property="Padding" Value="8,0,0,0" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Margin" Value="6,0,0,0" />
+        </Style>
+        <!-- Frame of a symbol / footprint / 3D view: rounded like the panels, with a smaller radius -->
+        <Style x:Key="Viewport" TargetType="local:ClippingBorder">
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BorderBrush" Value="{DynamicResource PanelBorderBrush}" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+        </Style>
+        <!-- Shown over an empty view: "Component not found", errors, … -->
+        <Style x:Key="ViewMessage" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource MutedTextBrush}" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="TextAlignment" Value="Center" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Margin" Value="8" />
+            <Setter Property="IsHitTestVisible" Value="False" />
+        </Style>
+    </UserControl.Resources>
+
+    <!-- Symbol, footprint and 3D side by side, or stacked when the panel is tall and narrow (see UpdateArrangement) -->
+    <Grid x:Name="CellsGrid" Margin="6" SizeChanged="CellsGrid_SizeChanged">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition />
+            <ColumnDefinition Width="6" />
+            <ColumnDefinition />
+            <ColumnDefinition Width="6" />
+            <ColumnDefinition />
+        </Grid.ColumnDefinitions>
+
+        <DockPanel x:Name="SymbolCell" Grid.Column="0">
+            <DockPanel Style="{StaticResource Header}">
+                <!-- Multi-part symbols (Part A, Part B, …), shown only when there is more than one part -->
+                <ComboBox x:Name="PartCombo" Style="{StaticResource HeaderCombo}"
+                          SelectionChanged="PartCombo_SelectionChanged" />
+                <TextBlock x:Name="SymbolCaption" Style="{StaticResource HeaderTitle}" Text="Symbol" />
+                <TextBlock x:Name="SymbolSource" Style="{StaticResource HeaderSource}" />
+            </DockPanel>
+            <!-- Wheel: zoom, drag: pan, double-click: fit (see ComponentViewport) -->
+            <local:ClippingBorder Style="{StaticResource Viewport}">
+                <Grid x:Name="SymbolHost" Background="White">
+                    <Image x:Name="SymbolImage" />
+                    <TextBlock x:Name="SymbolMessage" Style="{StaticResource ViewMessage}" />
+                </Grid>
+            </local:ClippingBorder>
+        </DockPanel>
+
+        <DockPanel x:Name="FootprintCell" Grid.Column="2">
+            <DockPanel Style="{StaticResource Header}">
+                <!-- Alternative footprints of the component (Footprint Ref 2, 3, …), shown only when there are any -->
+                <ComboBox x:Name="FootprintCombo" Style="{StaticResource HeaderCombo}" MaxWidth="220"
+                          SelectionChanged="FootprintCombo_SelectionChanged" />
+                <TextBlock x:Name="FootprintCaption" Style="{StaticResource HeaderTitle}" Text="Footprint" />
+                <TextBlock x:Name="FootprintSource" Style="{StaticResource HeaderSource}" />
+            </DockPanel>
+            <local:ClippingBorder Style="{StaticResource Viewport}">
+                <Grid x:Name="FootprintHost" Background="White">
+                    <Image x:Name="FootprintImage" />
+                    <TextBlock x:Name="FootprintMessage" Style="{StaticResource ViewMessage}" />
+                </Grid>
+            </local:ClippingBorder>
+        </DockPanel>
+
+        <DockPanel x:Name="ModelCell" Grid.Column="4">
+            <DockPanel Style="{StaticResource Header}">
+                <TextBlock x:Name="ModelCaption" Style="{StaticResource HeaderTitle}" Text="3D" />
+                <TextBlock x:Name="ModelStatus" Style="{StaticResource HeaderSource}" />
+            </DockPanel>
+            <!-- The 3D view is a native window, which can't be clipped to the rounded corners: a little padding in
+                 the view's background color keeps it clear of them -->
+            <local:ClippingBorder x:Name="ModelFrame" Style="{StaticResource Viewport}" Padding="2" Background="#F4F5F7">
+                <wv2:WebView2 x:Name="ModelView" DefaultBackgroundColor="#F4F5F7" />
+            </local:ClippingBorder>
+        </DockPanel>
+    </Grid>
+</UserControl>

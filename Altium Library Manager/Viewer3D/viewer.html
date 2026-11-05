@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!-- Locked down: scripts, styles and data only from this folder; no network, no inline code except the import map
+     (allowed by its hash). 'wasm-unsafe-eval' is needed to compile OpenCascade's WebAssembly module and
+     'unsafe-eval' by its Emscripten embind glue, which generates C++ call wrappers with new Function().
+     Network access is limited to STEP models served by the app (models.viewer3d.local) here and in the WebView2 host. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval' 'sha256-xReQKHvZyfNbkBiEKw03Vdx9lpHg9ebX5FVwF6M3xGg='; connect-src 'self' https://models.viewer3d.local; style-src 'self'; img-src 'self' data: blob:; base-uri 'none'; form-action 'none'">
+<title>3D</title>
+<link rel="stylesheet" href="viewer.css">
+<script type="importmap">{"imports":{"three":"./lib/three.module.js","three/addons/":"./lib/"}}</script>
+<script src="lib/occt-import-js.js"></script>
+</head>
+<body>
+<canvas id="view"></canvas>
+<div id="status">Loading 3D…</div>
+<script type="module" src="viewer.js"></script>
+</body>
+</html>

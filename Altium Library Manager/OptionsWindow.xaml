@@ -1,0 +1,278 @@
+<Window x:Class="Altium_Library_Manager.OptionsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:Altium_Library_Manager"
+        xmlns:settings="clr-namespace:Altium_Library_Manager.Services.Settings"
+        Title="Options" Width="780" Height="560" MinWidth="600" MinHeight="420"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
+        Background="{DynamicResource WindowBackgroundBrush}">
+    <!-- Same look as the main window: own title bar, content in rounded cards (styles in App.xaml) -->
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="36" GlassFrameThickness="0,0,0,1" UseAeroCaptionButtons="False"
+                      ResizeBorderThickness="{x:Static SystemParameters.WindowResizeBorderThickness}" />
+    </WindowChrome.WindowChrome>
+    <Window.Resources>
+        <Style x:Key="Page" TargetType="ScrollViewer">
+            <Setter Property="VerticalScrollBarVisibility" Value="Auto" />
+            <Setter Property="Padding" Value="20,16,20,16" />
+            <Setter Property="Visibility" Value="Collapsed" />
+        </Style>
+    </Window.Resources>
+
+    <DockPanel>
+        <local:DialogTitleBar DockPanel.Dock="Top" Icon="&#xE713;" Title="Options" />
+
+        <!-- OK applies and closes, Cancel (Esc) discards changes since the last Apply -->
+        <DockPanel DockPanel.Dock="Bottom" Margin="12,10,12,12">
+            <Button x:Name="RestoreDefaultsButton" Content="Restore defaults" Padding="12,4" Click="RestoreDefaults_Click"
+                    ToolTip="All options except templates; remembered column widths and search columns stay" />
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Content="OK" Width="96" IsDefault="True" Click="Ok_Click" Style="{DynamicResource AccentButtonStyle}" />
+                <Button Content="Cancel" Width="96" Margin="8,0,0,0" IsCancel="True" />
+                <Button Content="Apply" Width="96" Margin="8,0,0,0" Click="Apply_Click" />
+            </StackPanel>
+        </DockPanel>
+
+        <Grid Margin="6,0,6,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="190" />
+                <ColumnDefinition Width="6" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <!-- Categories -->
+            <local:ClippingBorder Grid.Column="0" Style="{StaticResource Card}">
+                <ListBox x:Name="Categories" SelectionChanged="Categories_SelectionChanged" BorderThickness="0"
+                         Background="Transparent" Padding="4" ItemContainerStyle="{StaticResource NavListItem}">
+                    <ListBoxItem Content="General" />
+                    <ListBoxItem Content="Appearance" />
+                    <ListBoxItem Content="Tables" />
+                    <ListBoxItem Content="Editing" />
+                    <ListBoxItem Content="Preview" />
+                    <ListBoxItem Content="Templates" />
+                </ListBox>
+            </local:ClippingBorder>
+
+            <local:ClippingBorder Grid.Column="2" Style="{StaticResource Card}">
+        <Grid>
+            <ScrollViewer x:Name="GeneralPage" Style="{StaticResource Page}">
+                <StackPanel>
+                    <TextBlock Text="General" Style="{StaticResource PageTitle}" />
+
+                    <TextBlock Text="Startup" Style="{StaticResource SettingLabel}" Margin="0,0,0,4" />
+                    <CheckBox x:Name="RestoreSessionCheck" Content="Reopen the last database" IsChecked="{Binding General.RestoreSession}" />
+                    <CheckBox Content="Also reopen the tables that were open" IsChecked="{Binding General.RestoreTabs}" Margin="24,6,0,0"
+                              IsEnabled="{Binding IsChecked, ElementName=RestoreSessionCheck}" />
+                    <TextBlock Style="{StaticResource SettingHint}"
+                               Text="Tables are loaded only when their tab is shown, so many open tabs don't slow down the start." />
+
+                    <TextBlock Text="Opening tables" Style="{StaticResource SettingLabel}" />
+                    <CheckBox Content="Reuse one tab for browsing tables" IsChecked="{Binding General.PreviewTabs}" />
+                    <TextBlock Style="{StaticResource SettingHint}"
+                               Text="A single click shows the table in a temporary tab (its title in italics); the next table you click replaces it, so tabs don't pile up. Double-click a table or its tab to keep it open. When off, every table opens in a tab of its own." />
+                </StackPanel>
+            </ScrollViewer>
+
+            <ScrollViewer x:Name="AppearancePage" Style="{StaticResource Page}">
+                <StackPanel>
+                    <TextBlock Text="Appearance" Style="{StaticResource PageTitle}" />
+
+                    <TextBlock Text="Theme" Style="{StaticResource SettingLabel}" Margin="0,0,0,4" />
+                    <ComboBox x:Name="ThemeCombo" SelectedItem="{Binding Appearance.Theme}" Width="220" HorizontalAlignment="Left" />
+                    <TextBlock Style="{StaticResource SettingHint}" Text="System follows the Windows app mode and switches with it." />
+
+                    <TextBlock Text="Interface scale" Style="{StaticResource SettingLabel}" />
+                    <DockPanel>
+                        <TextBlock DockPanel.Dock="Right" Width="56" TextAlignment="Right" VerticalAlignment="Center"
+                                   Text="{Binding Appearance.UiScale, StringFormat={}{0:P0}}" />
+                        <Slider Minimum="0.8" Maximum="1.5" TickFrequency="0.05" LargeChange="0.05" IsMoveToPointEnabled="True" IsSnapToTickEnabled="True"
+                                Value="{Binding Appearance.UiScale}" VerticalAlignment="Center" />
+                    </DockPanel>
+                    <TextBlock Style="{StaticResource SettingHint}"
+                               Text="Size of everything in the window, on top of the Windows display scaling." />
+
+                    <TextBlock Text="Footprint background" Style="{StaticResource SettingLabel}" />
+                    <CheckBox Content="Dark background in the dark theme (like a PCB editor)"
+                              IsChecked="{Binding Appearance.DarkFootprintBackground}" />
+                    <TextBlock Style="{StaticResource SettingHint}"
+                               Text="Symbols always stay on a light sheet, as in Altium." />
+                </StackPanel>
+            </ScrollViewer>
+
+            <ScrollViewer x:Name="TablesPage" Style="{StaticResource Page}">
+                <StackPanel>
+                    <TextBlock Text="Tables" Style="{StaticResource PageTitle}" />
+
+                    <TextBlock Text="Row height" Style="{StaticResource SettingLabel}" Margin="0,0,0,4" />
+                    <ComboBox x:Name="DensityCombo" SelectedItem="{Binding Tables.Density}" Width="220" HorizontalAlignment="Left" />
+                    <TextBlock Style="{StaticResource SettingHint}" Text="Compact shows the most rows; Comfortable is easier to read." />
+
+                    <TextBlock Text="Text size" Style="{StaticResource SettingLabel}" />
+                    <DockPanel>
+                        <TextBlock DockPanel.Dock="Right" Width="64" TextAlignment="Right" VerticalAlignment="Center"
+                                   Text="{Binding Tables.FontSize, StringFormat={}{0:0} px}" />
+                        <Slider Minimum="10" Maximum="16" TickFrequency="1" LargeChange="1" IsMoveToPointEnabled="True" IsSnapToTickEnabled="True"
+                                Value="{Binding Tables.FontSize}" VerticalAlignment="Center" />
+                    </DockPanel>
+                    <TextBlock Style="{StaticResource SettingHint}" Text="Rows grow when the text needs more room than the row height above gives." />
+
+                    <TextBlock Text="Column widths" Style="{StaticResource SettingLabel}" />
+                    <ComboBox x:Name="SizingCombo" SelectedValue="{Binding Tables.ColumnSizing}" SelectedValuePath="Tag"
+                              Width="220" HorizontalAlignment="Left" SelectionChanged="SizingCombo_SelectionChanged">
+                        <ComboBoxItem Content="Fit the content" Tag="{x:Static settings:ColumnSizing.FitContent}" />
+                        <ComboBoxItem Content="Same width for all" Tag="{x:Static settings:ColumnSizing.Fixed}" />
+                    </ComboBox>
+
+                    <!-- Fit the content: between a minimum and a maximum -->
+                    <Grid x:Name="FitContentPanel" Margin="0,10,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="64" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <TextBlock Text="At least" VerticalAlignment="Center" Margin="0,0,12,0" />
+                        <Slider Grid.Column="1" Minimum="30" Maximum="200" TickFrequency="5" LargeChange="5" IsMoveToPointEnabled="True" IsSnapToTickEnabled="True"
+                                Value="{Binding Tables.MinColumnWidth}" VerticalAlignment="Center" />
+                        <TextBlock Grid.Column="2" TextAlignment="Right" VerticalAlignment="Center"
+                                   Text="{Binding Tables.MinColumnWidth, StringFormat={}{0:0} px}" />
+                        <TextBlock Grid.Row="1" Text="At most" VerticalAlignment="Center" Margin="0,8,12,0" />
+                        <Slider Grid.Row="1" Grid.Column="1" Minimum="120" Maximum="800" TickFrequency="10" LargeChange="10" IsMoveToPointEnabled="True" IsSnapToTickEnabled="True"
+                                Value="{Binding Tables.MaxColumnWidth}" VerticalAlignment="Center" Margin="0,8,0,0" />
+                        <TextBlock Grid.Row="1" Grid.Column="2" TextAlignment="Right" VerticalAlignment="Center" Margin="0,8,0,0"
+                                   Text="{Binding Tables.MaxColumnWidth, StringFormat={}{0:0} px}" />
+                    </Grid>
+
+                    <!-- Same width for all -->
+                    <DockPanel x:Name="FixedPanel" Margin="0,10,0,0">
+                        <TextBlock Text="Width" VerticalAlignment="Center" Margin="0,0,12,0" />
+                        <TextBlock DockPanel.Dock="Right" Width="64" TextAlignment="Right" VerticalAlignment="Center"
+                                   Text="{Binding Tables.FixedColumnWidth, StringFormat={}{0:0} px}" />
+                        <Slider Minimum="60" Maximum="500" TickFrequency="10" LargeChange="10" IsMoveToPointEnabled="True" IsSnapToTickEnabled="True"
+                                Value="{Binding Tables.FixedColumnWidth}" VerticalAlignment="Center" />
+                    </DockPanel>
+                    <TextBlock Style="{StaticResource SettingHint}"
+                               Text="Longer values (URLs, paths) are trimmed; hover a cell to see the full text. Drag a column edge to change its width." />
+
+                    <CheckBox Content="Remember widths I set by dragging a column edge" IsChecked="{Binding Tables.RememberColumnWidths}"
+                              Margin="0,10,0,0" />
+                    <DockPanel Margin="0,8,0,0">
+                        <Button x:Name="ResetWidthsButton" Content="Reset remembered widths" Click="ResetWidths_Click" Padding="12,4" />
+                        <TextBlock x:Name="RememberedWidthsText" Style="{StaticResource SettingHint}" Margin="12,0,0,0"
+                                   VerticalAlignment="Center" />
+                    </DockPanel>
+                    <TextBlock Style="{StaticResource SettingHint}"
+                               Text="Kept per table, and for the Field column of the Details panel. Changing the options above re-fits the columns that weren't set by hand." />
+
+                    <TextBlock Text="Details panel" Style="{StaticResource SettingLabel}" />
+                    <DockPanel>
+                        <TextBlock Text="Field column takes at most" VerticalAlignment="Center" Margin="0,0,12,0" />
+                        <TextBlock DockPanel.Dock="Right" Width="64" TextAlignment="Right" VerticalAlignment="Center"
+                                   Text="{Binding Tables.DetailsFieldMaxShare, StringFormat={}{0:P0}}" />
+                        <Slider Minimum="0.2" Maximum="0.7" TickFrequency="0.05" LargeChange="0.05" IsMoveToPointEnabled="True" IsSnapToTickEnabled="True"
+                                Value="{Binding Tables.DetailsFieldMaxShare}" VerticalAlignment="Center" />
+                    </DockPanel>
+                    <TextBlock Style="{StaticResource SettingHint}"
+                               Text="Of the panel width. The column fits the field names up to this share, so a narrow panel keeps room for the values." />
+
+                    <TextBlock Text="Grid lines" Style="{StaticResource SettingLabel}" />
+                    <ComboBox x:Name="GridLinesCombo" SelectedItem="{Binding Tables.GridLines}" Width="220" HorizontalAlignment="Left" />
+
+                    <TextBlock Text="Rows and columns" Style="{StaticResource SettingLabel}" />
+                    <CheckBox Content="Shade every other row" IsChecked="{Binding Tables.AlternatingRows}" />
+                    <CheckBox Content="Shade the row of the selected cell" IsChecked="{Binding Tables.HighlightCurrentRow}" Margin="0,6,0,0" />
+                    <CheckBox Content="Keep the first column (Part Number) in place when scrolling sideways"
+                              IsChecked="{Binding Tables.FreezeFirstColumn}" Margin="0,6,0,0" />
+                </StackPanel>
+            </ScrollViewer>
+
+            <ScrollViewer x:Name="EditingPage" Style="{StaticResource Page}">
+                <StackPanel>
+                    <TextBlock Text="Editing" Style="{StaticResource PageTitle}" />
+
+                    <TextBlock Text="Opening tables" Style="{StaticResource SettingLabel}" Margin="0,0,0,4" />
+                    <CheckBox Content="Turn on Edit when a table opens" IsChecked="{Binding Editing.EditOnOpen}" />
+                    <TextBlock Style="{StaticResource SettingHint}"
+                               Text="For tables that open in a tab of their own. A temporary tab (see General) stays read-only, so browsing can't change anything." />
+
+                    <TextBlock Text="Deleting rows" Style="{StaticResource SettingLabel}" />
+                    <CheckBox Content="Ask before deleting rows" IsChecked="{Binding Editing.ConfirmDelete}" />
+                    <TextBlock Style="{StaticResource SettingHint}"
+                               Text="Deleted rows leave the database only when the table is saved, and Ctrl+Z brings them back." />
+
+                    <TextBlock Text="Undo" Style="{StaticResource SettingLabel}" />
+                    <DockPanel>
+                        <TextBlock Text="Changes kept per table" VerticalAlignment="Center" Margin="0,0,12,0" />
+                        <TextBlock DockPanel.Dock="Right" Width="64" TextAlignment="Right" VerticalAlignment="Center"
+                                   Text="{Binding Editing.UndoSteps}" />
+                        <Slider Minimum="50" Maximum="500" TickFrequency="50" LargeChange="50" IsMoveToPointEnabled="True" IsSnapToTickEnabled="True"
+                                Value="{Binding Editing.UndoSteps}" VerticalAlignment="Center" />
+                    </DockPanel>
+                    <TextBlock Style="{StaticResource SettingHint}"
+                               Text="Fewer changes take less memory on very large tables. A saved change can still be undone, and saved again." />
+                </StackPanel>
+            </ScrollViewer>
+
+            <ScrollViewer x:Name="PreviewPage" Style="{StaticResource Page}">
+                <StackPanel>
+                    <TextBlock Text="Preview" Style="{StaticResource PageTitle}" />
+
+                    <TextBlock Text="3D view" Style="{StaticResource SettingLabel}" Margin="0,0,0,4" />
+                    <CheckBox x:Name="Show3DCheck" Content="Show the 3D view" IsChecked="{Binding Preview.Show3D}" />
+                    <TextBlock Style="{StaticResource SettingHint}"
+                               Text="Off, the 3D engine isn't started at all: less memory and a faster start; symbol and footprint get the space." />
+                    <CheckBox Content="Show a board under the model" IsChecked="{Binding Preview.ShowBoard}" Margin="0,10,0,0"
+                              IsEnabled="{Binding IsChecked, ElementName=Show3DCheck}" />
+                    <CheckBox Content="Show the footprint's pads" IsChecked="{Binding Preview.ShowPads}" Margin="0,6,0,0"
+                              IsEnabled="{Binding IsChecked, ElementName=Show3DCheck}" />
+
+                    <TextBlock Text="3D model detail" Style="{StaticResource SettingLabel}" />
+                    <ComboBox x:Name="DetailCombo" SelectedItem="{Binding Preview.ModelDetail}" Width="220" HorizontalAlignment="Left"
+                              IsEnabled="{Binding IsChecked, ElementName=Show3DCheck}" />
+                    <TextBlock Style="{StaticResource SettingHint}"
+                               Text="Higher detail gives smoother curves but takes longer to load large STEP models. Changing it reloads the models already shown." />
+                </StackPanel>
+            </ScrollViewer>
+
+            <ScrollViewer x:Name="TemplatesPage" Style="{StaticResource Page}">
+                <StackPanel>
+                    <TextBlock Text="Templates" Style="{StaticResource PageTitle}" />
+
+                    <TextBlock Text="Templates folder" Style="{StaticResource SettingLabel}" Margin="0,0,0,4" />
+                    <TextBlock x:Name="FolderText" TextTrimming="CharacterEllipsis" />
+                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                        <Button Content="Change…" Padding="12,4" Click="ChangeFolder_Click" />
+                        <Button x:Name="DefaultFolderButton" Content="Use the default" Padding="12,4" Margin="8,0,0,0" Click="DefaultFolder_Click" />
+                        <Button Content="Open" Padding="12,4" Margin="8,0,0,0" Click="OpenFolder_Click" />
+                    </StackPanel>
+                    <TextBlock Style="{StaticResource SettingHint}"
+                               Text="Each template is a .json file in this folder. A shared folder (network drive, OneDrive, a Git repository) gives several computers or a whole team the same templates. When you switch folders, you can copy your templates to the new one." />
+
+                    <TextBlock Text="New tables" Style="{StaticResource SettingLabel}" />
+                    <DockPanel>
+                        <TextBlock Text="Start with" VerticalAlignment="Center" Margin="0,0,12,0" />
+                        <ComboBox x:Name="StartCombo" Width="300" HorizontalAlignment="Left"
+                                  SelectionChanged="StartCombo_SelectionChanged" />
+                    </DockPanel>
+                    <TextBlock Style="{StaticResource SettingHint}"
+                               Text="What the New table dialog shows first; you can still pick something else there." />
+                    <CheckBox Content="Open the new table in a tab" IsChecked="{Binding Templates.OpenCreatedTable}" Margin="0,10,0,0" />
+
+                    <TextBlock Text="Built-in template" Style="{StaticResource SettingLabel}" />
+                    <DockPanel>
+                        <Button x:Name="RestoreBuiltInButton" Content="Add &quot;Altium component&quot; again" Padding="12,4"
+                                Click="RestoreBuiltIn_Click" />
+                        <TextBlock x:Name="RestoreBuiltInText" Style="{StaticResource SettingHint}" Margin="12,0,0,0" VerticalAlignment="Center" />
+                    </DockPanel>
+                    <TextBlock Style="{StaticResource SettingHint}"
+                               Text="The template the app starts with: Part Number, symbol, three footprints, description, manufacturer, supplier and datasheet links." />
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+            </local:ClippingBorder>
+        </Grid>
+    </DockPanel>
+</Window>

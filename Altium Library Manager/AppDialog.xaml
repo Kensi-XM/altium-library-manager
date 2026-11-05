@@ -1,0 +1,36 @@
+<Window x:Class="Altium_Library_Manager.AppDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Width="460" SizeToContent="Height" ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
+        Background="{DynamicResource ContentBackgroundBrush}">
+    <!-- The app's message box, laid out like a Windows 11 content dialog: no title bar or inner frame, just the message
+         and a footer strip with the buttons. The top of the window drags it (WindowChrome caption). -->
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="44" GlassFrameThickness="0,0,0,1" UseAeroCaptionButtons="False" ResizeBorderThickness="0" />
+    </WindowChrome.WindowChrome>
+
+    <DockPanel>
+        <Border DockPanel.Dock="Bottom" Background="{DynamicResource WindowBackgroundBrush}"
+                BorderBrush="{DynamicResource PanelBorderBrush}" BorderThickness="0,1,0,0" Padding="20,14">
+            <StackPanel x:Name="Buttons" Orientation="Horizontal" HorizontalAlignment="Right" />
+        </Border>
+
+        <Grid Margin="24,24,24,22">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <TextBlock x:Name="KindIcon" FontFamily="{StaticResource IconFont}" FontSize="22" VerticalAlignment="Top"
+                       Margin="0,1,14,0" />
+            <StackPanel Grid.Column="1">
+                <TextBlock x:Name="MessageText" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap" />
+                <!-- Details may be long (lists of files): they scroll instead of growing the window past the screen -->
+                <ScrollViewer x:Name="DetailScroll" MaxHeight="260" VerticalScrollBarVisibility="Auto" Margin="0,8,0,0">
+                    <TextBlock x:Name="DetailText" TextWrapping="Wrap" Foreground="{DynamicResource MutedTextBrush}" />
+                </ScrollViewer>
+                <TextBox x:Name="InputBox" Margin="0,12,0,0" Visibility="Collapsed" />
+            </StackPanel>
+        </Grid>
+    </DockPanel>
+</Window>

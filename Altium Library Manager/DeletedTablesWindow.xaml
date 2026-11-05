@@ -1,0 +1,62 @@
+<Window x:Class="Altium_Library_Manager.DeletedTablesWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:Altium_Library_Manager"
+        Title="Deleted tables" Width="720" Height="520" MinWidth="520" MinHeight="360"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
+        Background="{DynamicResource WindowBackgroundBrush}" Closing="Window_Closing">
+    <!-- Same look as the other dialogs: own title bar, content in a rounded card (styles in App.xaml) -->
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="36" GlassFrameThickness="0,0,0,1" UseAeroCaptionButtons="False"
+                      ResizeBorderThickness="{x:Static SystemParameters.WindowResizeBorderThickness}" />
+    </WindowChrome.WindowChrome>
+
+    <DockPanel>
+        <local:DialogTitleBar DockPanel.Dock="Top" Icon="&#xE74D;" Title="Deleted tables" />
+
+        <DockPanel DockPanel.Dock="Bottom" Margin="12,10,12,12">
+            <Button DockPanel.Dock="Right" Content="Close" Width="96" IsCancel="True" />
+            <StackPanel Orientation="Horizontal">
+                <Button x:Name="RestoreButton" Content="Restore" MinWidth="96" Style="{DynamicResource AccentButtonStyle}"
+                        Click="Restore_Click" ToolTip="Put the table back into the open database (Enter)" />
+                <Button x:Name="DeleteButton" Content="Delete for good" Padding="12,4" Margin="8,0,0,0" Click="Delete_Click"
+                        ToolTip="Remove this copy (Del)" />
+                <Button x:Name="OpenButton" Content="Open in Access" Padding="12,4" Margin="8,0,0,0" Click="Open_Click"
+                        ToolTip="Open the copy in Microsoft Access, to look at it or take rows from it" />
+                <Button Content="Open folder" Padding="12,4" Margin="8,0,0,0" Click="OpenFolder_Click" />
+            </StackPanel>
+        </DockPanel>
+
+        <local:ClippingBorder Style="{StaticResource Card}" Margin="6,0,6,0">
+            <DockPanel>
+                <Border DockPanel.Dock="Top" Style="{StaticResource PanelHeader}">
+                    <DockPanel>
+                        <TextBlock x:Name="CountText" DockPanel.Dock="Right" VerticalAlignment="Center" Margin="0,0,6,0"
+                                   Foreground="{DynamicResource MutedTextBrush}" />
+                        <TextBlock Text="Tables deleted from your databases, newest first" FontWeight="SemiBold" VerticalAlignment="Center"
+                                   Margin="0,2" />
+                    </DockPanel>
+                </Border>
+                <Grid>
+                    <ListBox x:Name="List" BorderThickness="0" Background="Transparent" Padding="4"
+                             ItemContainerStyle="{StaticResource NavListItem}" SelectionChanged="List_SelectionChanged"
+                             MouseDoubleClick="List_MouseDoubleClick" KeyDown="List_KeyDown"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Margin="0,2">
+                                    <TextBlock Text="{Binding Table}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Text="{Binding Summary}" FontSize="12" TextTrimming="CharacterEllipsis"
+                                               Foreground="{DynamicResource MutedTextBrush}" ToolTip="{Binding Database}" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                    <TextBlock x:Name="EmptyText" Style="{StaticResource SettingHint}" Margin="24" TextAlignment="Center"
+                               VerticalAlignment="Center"
+                               Text="No deleted tables. When you delete a table, a copy of it is kept here, so you can restore it." />
+                </Grid>
+            </DockPanel>
+        </local:ClippingBorder>
+    </DockPanel>
+</Window>

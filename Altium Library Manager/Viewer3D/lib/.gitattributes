@@ -1,0 +1,2 @@
+# The build checks these files against pinned hashes: git must not change their line endings
+* -text
