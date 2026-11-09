@@ -19,6 +19,7 @@ namespace Altium_Library_Manager.Tests
             TableTests.AnswerDialogs();
             LogicTests.Run();
             HelpTests.RunText();
+            SeriesTests.Run();
             DatabaseTests.Run();
             SettingsTests.RunFiles();
 

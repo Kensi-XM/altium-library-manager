@@ -1739,12 +1739,10 @@ namespace Altium_Library_Manager
             if (dialog.ShowDialog(this) != true || row != _detailsRow || tab != ActiveTab)
                 return;
 
-            // Links are opened as they are, by whatever reads them: only library paths are stored relative to the database
-            var example = field.Value.Length > 0 ? field.Value
+            // Relative to the database folder, as the library paths are, so the folder can move; a web address isn't an example of how paths are written
+            var example = field.Value.Length > 0 && FieldLinks.WebAddress(field.Value) == null ? field.Value
                 : _detailsFields.FirstOrDefault(f => f.Link is FieldLink.Symbol or FieldLink.Footprint && f.Value.Length > 0)?.Value;
-            ApplyPickedFile(tab, row, field, field.Link == FieldLink.Document
-                ? dialog.FileName
-                : FieldLinks.StoredPath(dialog.FileName, databaseFolder, example));
+            ApplyPickedFile(tab, row, field, FieldLinks.StoredPath(dialog.FileName, databaseFolder, example));
         }
 
         private void ApplyPickedFile(TableTab tab, DataRow row, RowField field, string value)

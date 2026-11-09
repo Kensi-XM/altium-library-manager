@@ -40,6 +40,12 @@ namespace Altium_Library_Manager.Services
         public const int MaxValues = 5000;
 
         /// <summary>The E series (IEC 60063) with the tolerance each is made for, and two other common steps.</summary>
+        /// <summary>A series a type file may name: one of <see cref="AllSeries"/>, or E48, E96 or E192 with "+E24".</summary>
+        public static bool IsKnownSeries(string series) => AllSeries.Any(s => s.Name == series) || series is "E48+E24" or "E96+E24" or "E192+E24";
+
+        /// <summary>The series that lack the E24 values (no 4.7 or 3.3), which can be added to them.</summary>
+        public static bool CanAddE24(string series) => series is "E48" or "E96" or "E192";
+
         public static readonly IReadOnlyList<SeriesInfo> AllSeries =
         [
             new("E3", "E3 (over 20%)"),
@@ -70,6 +76,8 @@ namespace Altium_Library_Manager.Services
             "1-2-5" => [1, 2, 5],
             "E48" or "E96" or "E192" when int.TryParse(series.AsSpan(1), out var n) =>
                 Enumerable.Range(0, n).Select(i => Math.Round(Math.Pow(10, (double)i / n), 2)).Select(m => m == 9.19 ? 9.2 : m),
+            // The finer series have no 4.7 or 3.3 (E96 has 4.64, 4.75), but makers sell the E24 values in 1% and better too
+            "E48+E24" or "E96+E24" or "E192+E24" => Mantissas(series[..^4]).Concat(E24).Distinct().Order(),
             _ => []
         };
 

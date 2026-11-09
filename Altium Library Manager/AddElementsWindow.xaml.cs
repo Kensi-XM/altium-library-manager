@@ -99,7 +99,10 @@ namespace Altium_Library_Manager
             var type = Type;
             var loading = _loading;
             _loading = true;
-            SeriesCombo.SelectedItem = ElementValues.AllSeries.FirstOrDefault(s => s.Name == type.Series) ?? ElementValues.AllSeries[3];
+            var series = type.Series.EndsWith("+E24", StringComparison.Ordinal) ? type.Series[..^4] : type.Series;
+            SeriesCombo.SelectedItem = ElementValues.AllSeries.FirstOrDefault(s => s.Name == series) ?? ElementValues.AllSeries[3];
+            WithE24Check.IsChecked = type.Series.EndsWith("+E24", StringComparison.Ordinal);
+            UpdateE24Check();
             FromBox.Text = type.From;
             ToBox.Text = type.To;
             ValuesList.Text = type.Values;
@@ -199,7 +202,31 @@ namespace Altium_Library_Manager
             ValuesList.IsEnabled = !series;
         }
 
-        private void Inputs_Changed(object sender, RoutedEventArgs e) => Update();
+        private void Inputs_Changed(object sender, RoutedEventArgs e)
+        {
+            UpdateE24Check();
+            Update();
+        }
+
+
+        // The E24 values are offered only for the series without them; picking one of those turns them on, as 4.7k is what
+        // people look for (a saved type keeps what it was saved with)
+        private string? _shownSeries;
+
+        private void UpdateE24Check()
+        {
+            var name = (SeriesCombo.SelectedItem as SeriesInfo)?.Name ?? "";
+            if (!_loading && name != _shownSeries && ElementValues.CanAddE24(name))
+                WithE24Check.IsChecked = true;
+            _shownSeries = name;
+            WithE24Check.Visibility = ElementValues.CanAddE24(name) ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        private string SelectedSeries()
+        {
+            var name = ((SeriesInfo)SeriesCombo.SelectedItem).Name;
+            return ElementValues.CanAddE24(name) && WithE24Check.IsChecked == true ? name + "+E24" : name;
+        }
 
         private void Field_Changed(object? sender, PropertyChangedEventArgs e) => Update();
 
@@ -215,7 +242,7 @@ namespace Altium_Library_Manager
                 return ([], "\"To\" isn't a value of this element.");
             if (from <= 0 || to < from)
                 return ([], "\"From\" has to be above zero, and not above \"To\".");
-            return (ElementValues.Series(((SeriesInfo)SeriesCombo.SelectedItem).Name, from, to).Select(v => ElementValues.Format(type, v)).ToList(), null);
+            return (ElementValues.Series(SelectedSeries(), from, to).Select(v => ElementValues.Format(type, v)).ToList(), null);
         }
 
         /// <summary>Works out the rows: what each one gets, which are left out (their Part Number is taken) and what is
@@ -380,7 +407,7 @@ namespace Altium_Library_Manager
                 return;
             var type = Type.Copy();
             type.Name = name;
-            type.Series = ((SeriesInfo)SeriesCombo.SelectedItem).Name;
+            type.Series = SelectedSeries();
             type.From = FromBox.Text;
             type.To = ToBox.Text;
             type.Values = SeriesRadio.IsChecked == true ? "" : ValuesList.Text;
@@ -438,9 +465,9 @@ namespace Altium_Library_Manager
             var dialog = new OpenFileDialog { Title = $"Choose a file for {field.Name}", Filter = FieldLinks.Filter(field.Link), InitialDirectory = folder };
             if (dialog.ShowDialog(this) != true)
                 return;
-            var example = field.Pattern.Length > 0 ? field.Pattern
+            var example = field.Pattern.Length > 0 && FieldLinks.WebAddress(field.Pattern) == null ? field.Pattern
                 : _fields.FirstOrDefault(f => f.Link is FieldLink.Symbol or FieldLink.Footprint && f.Pattern.Length > 0)?.Pattern;
-            field.Pattern = field.Link == FieldLink.Document ? dialog.FileName : FieldLinks.StoredPath(dialog.FileName, folder, example);
+            field.Pattern = FieldLinks.StoredPath(dialog.FileName, folder, example);
         }
 
         /// <summary>A menu of the components of the field's library (the path as it is typed here).</summary>

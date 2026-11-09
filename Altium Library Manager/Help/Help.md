@@ -157,7 +157,7 @@ With **Edit** on, click a value and type. `Enter` applies it, and `Esc` drops it
 | Field | The button |
 | **Library Path, Footprint Path** | Picks a library file. It is stored relative to the database folder when the other rows do so. |
 | **Library Ref, Footprint Ref** | Lists the symbols or footprints of the row's library, to pick one. Type to filter, `Enter` applies, `Esc` closes. |
-| **ComponentLink URL, other paths** | Picks a file. |
+| **ComponentLink URL, other paths** | Picks a file. A file in the database's folder is stored relative to it, like the library paths, so the folder can be moved. |
 
 The same is in the right-click menu of the cell in the table: **Choose file** or **Choose from library**.
 
@@ -192,7 +192,7 @@ This adds many similar components at once, differing in their value: resistors o
 6. Press **Add rows**. They are added as one step of [Undo](#editing), and they aren't in the database until you save.
 
 ## Values
-**Standard series** makes the values of a series between From and To: E3 to E192, R10, or 1-2-5. **List** takes values you type, one per line or separated by commas, and ready lists of the type's usual values.
+**Standard series** makes the values of a series between From and To: E3 to E192, R10, or 1-2-5. E48, E96 and E192 have no 4.7 or 3.3, as the standard has it (E96 has 4.64 and 4.75); choose **E96 + E24** and the like to have the usual values too, which makers sell in 1% and better. **List** takes values you type, one per line or separated by commas, and ready lists of the type's usual values.
 
 Values can be written the way you are used to:
 

@@ -786,6 +786,37 @@ namespace Altium_Library_Manager.Tests
                 True(((string)Part<TextBlock>(dialog, "ErrorText").Text).Length > 0, "explained");
                 dialog.Close();
             });
+            Test("the E24 values: one tick, only for E48, E96 and E192, on when one is picked", () =>
+            {
+                tab.SelectItem(host.Items[0]);
+                var dialog = Open();
+                Pick(dialog, "Resistor");
+                Part<RadioButton>(dialog, "SeriesRadio").IsChecked = true;
+                Part<TextBox>(dialog, "FromBox").Text = "4K";
+                Part<TextBox>(dialog, "ToBox").Text = "5K";
+                var combo = Part<ComboBox>(dialog, "SeriesCombo");
+                var check = Part<CheckBox>(dialog, "WithE24Check");
+                string Codes() => string.Join(" ", Preview(dialog).Select(r => r.Value));
+                combo.SelectedItem = ElementValues.AllSeries.First(s => s.Name == "E24");
+                Wait();
+                Equal(Visibility.Collapsed, check.Visibility, "not for E24");
+                combo.SelectedItem = ElementValues.AllSeries.First(s => s.Name == "E96");
+                Wait();
+                Equal(Visibility.Visible, check.Visibility, "for E96");
+                True(check.IsChecked == true, "on when picked");
+                True(Codes().Contains("4K7") && Codes().Contains("4K75"), Codes());
+                check.IsChecked = false;
+                Wait();
+                True(!Codes().Contains("4K7 ") && Codes().Contains("4K75"), Codes());
+                Equal(9, ElementValues.AllSeries.Count, "the list stays short");
+                dialog.Close();
+            });
+            Test("a type saved with E96 alone opens that way", () =>
+            {
+                var type = ElementTypes.Load([]).First(t => t.Name == "Resistor");
+                Equal("E24", type.Series, "the plain resistor");
+                Equal("E96+E24", BuiltInElementTypes.All().First(t => t.Name == "Resistor, precision").Series, "precision");
+            });
             Test("an endless range in From / To", () =>
             {
                 var dialog = Open();

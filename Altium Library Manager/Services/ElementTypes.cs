@@ -214,7 +214,7 @@ namespace Altium_Library_Manager.Services
                 throw new FormatException("the code letter has to be one letter");
             if (type.Prefixes.Count == 0 || type.Prefixes.Concat([type.Bare]).Any(p => !KnownPrefixes.Contains(p)))
                 throw new FormatException($"prefixes can only be: {string.Join(" ", KnownPrefixes.Skip(1))}, or empty");
-            if (ElementValues.AllSeries.All(s => s.Name != type.Series))
+            if (!ElementValues.IsKnownSeries(type.Series))
                 throw new FormatException($"there is no series \"{type.Series}\"");
             if (type.Lists.Count > 100 || type.Lists.Values.Any(l => l == null || l.Count > MaxItems) || type.Patterns.Count > 500)
                 throw new FormatException("too many values");
@@ -282,7 +282,7 @@ namespace Altium_Library_Manager.Services
             return
             [
                 Number("Resistor", "Ohm", ElementStyle.Letter, "R", ohm, "", "E24", "10", "1M", resistance, [], ["resistor"]),
-                Number("Resistor, precision", "Ohm", ElementStyle.Letter, "R", ohm, "", "E96", "10", "1M", resistance, ["precision resistor"]),
+                Number("Resistor, precision", "Ohm", ElementStyle.Letter, "R", ohm, "", "E96+E24", "10", "1M", resistance, ["precision resistor"]),
                 Number("Current sense resistor", "Ohm", ElementStyle.Letter, "R", ohm, "", "E6", "0.001", "1", resistance, ["current sense", "shunt"])
                     .With("Common shunts", "0R001", "0R002", "0R005", "0R01", "0R015", "0R02", "0R025", "0R03", "0R05", "0R1", "0R15", "0R2", "0R25", "0R33", "0R5", "1R"),
                 Number("Resistor network", "Ohm", ElementStyle.Letter, "R", ohm, "", "E12", "10", "1M", resistance, ["resistor network", "arrays"]),

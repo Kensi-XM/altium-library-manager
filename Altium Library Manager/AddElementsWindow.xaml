@@ -103,13 +103,16 @@
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
                             <TextBlock Text="Series" VerticalAlignment="Center" Margin="0,0,10,0" />
                             <ComboBox x:Name="SeriesCombo" Grid.Column="1" SelectionChanged="Inputs_Changed" HorizontalAlignment="Stretch" />
-                            <TextBlock Grid.Row="1" Text="From" VerticalAlignment="Center" Margin="0,8,10,0" />
-                            <TextBox x:Name="FromBox" Grid.Row="1" Grid.Column="1" Margin="0,8,0,0" Style="{StaticResource FieldBox}" TextChanged="Inputs_Changed" />
-                            <TextBlock Grid.Row="2" Text="To" VerticalAlignment="Center" Margin="0,8,10,0" />
-                            <TextBox x:Name="ToBox" Grid.Row="2" Grid.Column="1" Margin="0,8,0,0" Style="{StaticResource FieldBox}" TextChanged="Inputs_Changed" />
+                            <CheckBox x:Name="WithE24Check" Grid.Row="1" Grid.Column="1" Margin="0,6,0,0" Content="With the E24 values (4.7, 3.3, …)" Visibility="Collapsed" Checked="Inputs_Changed" Unchecked="Inputs_Changed"
+                                      ToolTip="E48, E96 and E192 have no 4.7 or 3.3: as the standard has it, their steps are finer (4.64, 4.75). Makers sell the E24 values in this tolerance too." />
+                            <TextBlock Grid.Row="2" Text="From" VerticalAlignment="Center" Margin="0,8,10,0" />
+                            <TextBox x:Name="FromBox" Grid.Row="2" Grid.Column="1" Margin="0,8,0,0" Style="{StaticResource FieldBox}" TextChanged="Inputs_Changed" />
+                            <TextBlock Grid.Row="3" Text="To" VerticalAlignment="Center" Margin="0,8,10,0" />
+                            <TextBox x:Name="ToBox" Grid.Row="3" Grid.Column="1" Margin="0,8,0,0" Style="{StaticResource FieldBox}" TextChanged="Inputs_Changed" />
                         </Grid>
 
                         <RadioButton x:Name="ListRadio" Content="List" Margin="0,14,0,0" GroupName="Source" Checked="Source_Changed" />
