@@ -721,6 +721,18 @@ namespace Altium_Library_Manager.Tests
                 return dialog;
             }
             V Part<V>(AddElementsWindow d, string name) => (V)d.FindName(name);
+            static List<V> FindAll<V>(DependencyObject root) where V : DependencyObject
+            {
+                var found = new List<V>();
+                for (var i = 0; i < System.Windows.Media.VisualTreeHelper.GetChildrenCount(root); i++)
+                {
+                    var child = System.Windows.Media.VisualTreeHelper.GetChild(root, i);
+                    if (child is V match)
+                        found.Add(match);
+                    found.AddRange(FindAll<V>(child));
+                }
+                return found;
+            }
             List<ElementField> Fields(AddElementsWindow d) => (List<ElementField>)typeof(AddElementsWindow).GetField("_fields", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(d)!;
             List<ElementRow> Preview(AddElementsWindow d) => ((IEnumerable<ElementRow>)Part<DataGrid>(d, "PreviewGrid").ItemsSource).ToList();
             void Pick(AddElementsWindow d, string name) => Part<ComboBox>(d, "KindCombo").SelectedItem = Part<ComboBox>(d, "KindCombo").Items.OfType<ElementType>().First(t => t.Name == name);
@@ -738,6 +750,59 @@ namespace Altium_Library_Manager.Tests
                     }
                     dialog.Close();
                 }
+            });
+            Test("fields in groups: each Ref next to its Path, each link's text next to its URL", () =>
+            {
+                var names = new[] { "Part Number", "Library Ref", "Library Path", "Footprint Ref", "Footprint Path", "Description", "Footprint Ref 2", "Footprint Path 2",
+                    "Footprint Ref 3", "Footprint Path 3", "Comment", "Value", "Manufacturer", "Manufacturer Part Number", "Supplier 1", "Supplier Part Number 1",
+                    "ComponentLink1Description", "ComponentLink1URL", "ComponentLink2Description", "ComponentLink2URL", "Power", "Tolerance" };
+                var fields = names.Select(n => new ElementField(n, n == "Power" ? "{Short}" : "", FieldLinks.Classify(n))).ToList();
+                var groups = ElementFieldGroups.Build(fields, "Part Number", "Value");
+                string Show(FieldRow r) => r.Second == null ? r.First.Field.Name : $"{r.Label}: {r.First.Field.Name} + {r.Second.Field.Name}";
+                var text = string.Join("\n", groups.Select(g => $"{g.Title}: {string.Join(" | ", g.Rows.Select(Show))}"));
+                Equal("Part: Part Number | Value | Comment | Description | Power\n" +
+                      "Symbol and footprints: Symbol: Library Ref + Library Path | Footprint: Footprint Ref + Footprint Path | Footprint 2: Footprint Ref 2 + Footprint Path 2 | Footprint 3: Footprint Ref 3 + Footprint Path 3\n" +
+                      "Manufacturer and supplier: Manufacturer: Manufacturer + Manufacturer Part Number | Supplier 1: Supplier 1 + Supplier Part Number 1\n" +
+                      "Links: Link 1: ComponentLink1Description + ComponentLink1URL | Link 2: ComponentLink2Description + ComponentLink2URL\n" +
+                      "Other fields: Tolerance", text, "groups");
+                var shown = groups.SelectMany(g => g.Rows).SelectMany(r => new[] { r.First.Field, r.Second?.Field }).OfType<ElementField>().ToList();
+                Equal(fields.Count, shown.Count, "every field once");
+                True(shown.Distinct().Count() == fields.Count, "no field twice");
+                // Odd tables: a lone path, a ref without its path, names in another case
+                var odd = new[] { "PN", "footprint path 2", "Footprint Ref", "COMPONENTLINK3URL", "supplier", "Notes" }
+                    .Select(n => new ElementField(n, "", FieldLinks.Classify(n))).ToList();
+                var oddShown = ElementFieldGroups.Build(odd, null, null).SelectMany(g => g.Rows).SelectMany(r => new[] { r.First.Field, r.Second?.Field }).OfType<ElementField>().ToList();
+                Equal(odd.Count, oddShown.Distinct().Count(), "odd fields, each once");
+            });
+            Test("the dialog shows the groups, and a typed text reaches the field", () =>
+            {
+                tab.SelectItem(host.Items[0]);
+                var dialog = Open();
+                Pick(dialog, "Resistor");
+                Wait();
+                var boxes = FindAll<TextBox>(Part<ItemsControl>(dialog, "FieldList"));
+                Equal(Fields(dialog).Count, boxes.Count, "a box per field");
+                var footprint = boxes.First(b => b.DataContext is FieldCell { Field.Name: "Footprint Path" });
+                footprint.Text = @"PCB\Other.PcbLib";
+                Equal(@"PCB\Other.PcbLib", Fields(dialog).First(f => f.Name == "Footprint Path").Pattern, "typed");
+                // Opened large enough for all the fields (or as tall as the screen)
+                var scroller = Part<ScrollViewer>(dialog, "FieldScroller");
+                var area = (Rect)typeof(AddElementsWindow).Assembly.GetType("Altium_Library_Manager.ScreenFit")!.GetMethod("WorkArea")!.Invoke(null, [dialog])!;
+                True(scroller.ExtentHeight <= scroller.ViewportHeight + 1 || dialog.ActualHeight >= area.Height - 1,
+                    $"all fields shown: {scroller.ExtentHeight} in {scroller.ViewportHeight}, window {dialog.ActualHeight} of {area.Height}");
+                True(dialog.ActualHeight <= area.Height + 1 && dialog.ActualWidth <= area.Width + 1, "within the screen");
+                if (Environment.GetEnvironmentVariable("ALM_SNAPSHOT") is { Length: > 0 } file)
+                {
+                    Part<ComboBox>(dialog, "SeriesCombo").SelectedItem = ElementValues.AllSeries.First(s => s.Name == "E96");
+                    Wait(200);
+                    var bitmap = new System.Windows.Media.Imaging.RenderTargetBitmap((int)dialog.ActualWidth, (int)dialog.ActualHeight, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
+                    bitmap.Render(dialog);
+                    var png = new System.Windows.Media.Imaging.PngBitmapEncoder();
+                    png.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bitmap));
+                    using var stream = System.IO.File.Create(file);
+                    png.Save(stream);
+                }
+                dialog.Close();
             });
             Test("opens for a table with no part number field", () =>
             {
@@ -799,10 +864,15 @@ namespace Altium_Library_Manager.Tests
                 string Codes() => string.Join(" ", Preview(dialog).Select(r => r.Value));
                 combo.SelectedItem = ElementValues.AllSeries.First(s => s.Name == "E24");
                 Wait();
-                Equal(Visibility.Collapsed, check.Visibility, "not for E24");
+                Equal(Visibility.Hidden, check.Visibility, "not for E24, but its place kept");
+                var from = Part<TextBox>(dialog, "FromBox");
+                var place = from.TranslatePoint(new Point(), dialog);
+                var width = from.ActualWidth;
                 combo.SelectedItem = ElementValues.AllSeries.First(s => s.Name == "E96");
                 Wait();
                 Equal(Visibility.Visible, check.Visibility, "for E96");
+                Equal(place, from.TranslatePoint(new Point(), dialog), "nothing below it moved");
+                Equal(width, from.ActualWidth, "nor changed its width");
                 True(check.IsChecked == true, "on when picked");
                 True(Codes().Contains("4K7") && Codes().Contains("4K75"), Codes());
                 check.IsChecked = false;

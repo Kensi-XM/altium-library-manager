@@ -2,7 +2,7 @@
 ; Installs for the current user, so it needs no administrator rights.
 
 #ifndef AppVersion
-  #define AppVersion "1.0.2"
+  #define AppVersion "1.0.3"
 #endif
 #ifndef PublishDir
   #define PublishDir "..\publish\win-x64"
@@ -28,6 +28,9 @@ UninstallDisplayIcon={app}\Altium Library Manager.exe
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
+; The app's own icon in the top corner, one picture per display scale (100% to 250%): Setup takes the one that fits,
+; where its stock picture came out cut at some scales
+WizardSmallImageFile=wizard-small-55.bmp,wizard-small-64.bmp,wizard-small-83.bmp,wizard-small-92.bmp,wizard-small-110.bmp,wizard-small-119.bmp,wizard-small-138.bmp
 
 [Tasks]
 Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Shortcuts:"; Flags: unchecked

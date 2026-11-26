@@ -15,6 +15,41 @@
             <Setter Property="Padding" Value="8,2" />
             <Setter Property="Margin" Value="3" />
         </Style>
+        <!-- A field in the Fields list: its short name (in a shared row), the button to pick a file or a component, its text -->
+        <DataTemplate DataType="{x:Type local:FieldCell}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="{Binding Label}" VerticalAlignment="Center" Margin="0,0,6,0" FontSize="12" ToolTip="{Binding Field.Name}"
+                           Foreground="{DynamicResource MutedTextBrush}">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding HasLabel}" Value="False">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+                <Button Grid.Column="1" DataContext="{Binding Field}" Content="{Binding Glyph}" Click="FieldButton_Click" ToolTip="{Binding Tip}" Width="26" Margin="0,0,2,0">
+                    <Button.Style>
+                        <Style TargetType="Button" BasedOn="{StaticResource IconButton}">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding HasButton}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
+                <TextBox Grid.Column="2" Style="{DynamicResource FieldBox}" Text="{Binding Field.Pattern, UpdateSourceTrigger=PropertyChanged}" />
+            </Grid>
+        </DataTemplate>
         <!-- Compact text box of the field list: Fluent's is a tall touch target with a clear button -->
         <Style x:Key="FieldBox" TargetType="TextBox">
             <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
@@ -98,21 +133,23 @@
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
                             <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
                             <TextBlock Text="Series" VerticalAlignment="Center" Margin="0,0,10,0" />
                             <ComboBox x:Name="SeriesCombo" Grid.Column="1" SelectionChanged="Inputs_Changed" HorizontalAlignment="Stretch" />
-                            <CheckBox x:Name="WithE24Check" Grid.Row="1" Grid.Column="1" Margin="0,6,0,0" Content="With the E24 values (4.7, 3.3, …)" Visibility="Collapsed" Checked="Inputs_Changed" Unchecked="Inputs_Changed"
-                                      ToolTip="E48, E96 and E192 have no 4.7 or 3.3: as the standard has it, their steps are finer (4.64, 4.75). Makers sell the E24 values in this tolerance too." />
-                            <TextBlock Grid.Row="2" Text="From" VerticalAlignment="Center" Margin="0,8,10,0" />
-                            <TextBox x:Name="FromBox" Grid.Row="2" Grid.Column="1" Margin="0,8,0,0" Style="{StaticResource FieldBox}" TextChanged="Inputs_Changed" />
-                            <TextBlock Grid.Row="3" Text="To" VerticalAlignment="Center" Margin="0,8,10,0" />
-                            <TextBox x:Name="ToBox" Grid.Row="3" Grid.Column="1" Margin="0,8,0,0" Style="{StaticResource FieldBox}" TextChanged="Inputs_Changed" />
+                            <!-- Only for E48, E96 and E192; hidden, not collapsed, for the others, so nothing moves -->
+                            <CheckBox x:Name="WithE24Check" Grid.Column="2" Margin="10,0,0,0" MinWidth="0" Padding="6,0,0,0" VerticalAlignment="Center" VerticalContentAlignment="Center"
+                                      Content="+ E24" Visibility="Hidden" Checked="Inputs_Changed" Unchecked="Inputs_Changed"
+                                      ToolTip="Adds the E24 values (4.7, 3.3, 6.8…). E48, E96 and E192 don't have them: their steps are finer (4.64, 4.75), but makers sell the E24 values in this tolerance too." />
+                            <TextBlock Grid.Row="1" Text="From" VerticalAlignment="Center" Margin="0,8,10,0" />
+                            <TextBox x:Name="FromBox" Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,8,0,0" Style="{StaticResource FieldBox}" TextChanged="Inputs_Changed" />
+                            <TextBlock Grid.Row="2" Text="To" VerticalAlignment="Center" Margin="0,8,10,0" />
+                            <TextBox x:Name="ToBox" Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,8,0,0" Style="{StaticResource FieldBox}" TextChanged="Inputs_Changed" />
                         </Grid>
 
                         <RadioButton x:Name="ListRadio" Content="List" Margin="0,14,0,0" GroupName="Source" Checked="Source_Changed" />
@@ -134,49 +171,39 @@
                         <TextBlock x:Name="FieldsTitle" Text="Fields" FontWeight="SemiBold" Margin="0,2" TextTrimming="CharacterEllipsis" />
                     </Border>
                     <TextBlock x:Name="PatternHint" DockPanel.Dock="Top" Style="{StaticResource SettingHint}" Margin="12,8,12,6" />
-                    <ListBox x:Name="FieldList" BorderThickness="0" Background="Transparent" Padding="6,0,6,6"
-                             ScrollViewer.HorizontalScrollBarVisibility="Disabled" KeyboardNavigation.TabNavigation="Continue">
-                        <ListBox.ItemContainerStyle>
-                            <Style TargetType="ListBoxItem">
-                                <Setter Property="Focusable" Value="False" />
-                                <Setter Property="IsTabStop" Value="False" />
-                                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-                                <Setter Property="Template">
-                                    <Setter.Value>
-                                        <ControlTemplate TargetType="ListBoxItem">
-                                            <ContentPresenter Margin="0,1" />
-                                        </ControlTemplate>
-                                    </Setter.Value>
-                                </Setter>
-                            </Style>
-                        </ListBox.ItemContainerStyle>
-                        <ListBox.ItemTemplate>
-                            <DataTemplate DataType="{x:Type local:ElementField}">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="210" />
-                                        <ColumnDefinition Width="26" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Text="{Binding Name}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" ToolTip="{Binding Name}"
-                                               Foreground="{DynamicResource MutedTextBrush}" />
-                                    <Button Grid.Column="1" Content="{Binding Glyph}" Click="FieldButton_Click" ToolTip="{Binding Tip}">
-                                        <Button.Style>
-                                            <Style TargetType="Button" BasedOn="{StaticResource IconButton}">
-                                                <Setter Property="Visibility" Value="Collapsed" />
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding HasButton}" Value="True">
-                                                        <Setter Property="Visibility" Value="Visible" />
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Button.Style>
-                                    </Button>
-                                    <TextBox Grid.Column="2" Style="{StaticResource FieldBox}" Text="{Binding Pattern, UpdateSourceTrigger=PropertyChanged}" />
-                                </Grid>
-                            </DataTemplate>
-                        </ListBox.ItemTemplate>
-                    </ListBox>
+                    <!-- In groups (ElementFieldGroups); fields that belong together share a row -->
+                    <ScrollViewer x:Name="FieldScroller" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+                        <ItemsControl x:Name="FieldList" Margin="12,0,12,8" KeyboardNavigation.TabNavigation="Continue" Focusable="False">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type local:FieldGroup}">
+                                    <StackPanel Margin="0,6,0,4">
+                                        <DockPanel Margin="0,0,0,4">
+                                            <TextBlock Text="{Binding Title}" FontWeight="SemiBold" Margin="0,0,10,0" VerticalAlignment="Center" />
+                                            <Border Height="1" Background="{DynamicResource PanelHeaderBrush}" VerticalAlignment="Center" />
+                                        </DockPanel>
+                                        <ItemsControl ItemsSource="{Binding Rows}" Focusable="False">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate DataType="{x:Type local:FieldRow}">
+                                                    <Grid Margin="0,2">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="170" />
+                                                            <ColumnDefinition Width="{Binding FirstWidth}" />
+                                                            <ColumnDefinition Width="{Binding GapWidth}" />
+                                                            <ColumnDefinition Width="{Binding SecondWidth}" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Text="{Binding Label}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" ToolTip="{Binding Tip}"
+                                                                   Foreground="{DynamicResource MutedTextBrush}" Margin="0,0,8,0" />
+                                                        <ContentControl Grid.Column="1" Content="{Binding First}" Focusable="False" />
+                                                        <ContentControl Grid.Column="3" Content="{Binding Second}" Focusable="False" />
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
                 </DockPanel>
             </local:ClippingBorder>
 

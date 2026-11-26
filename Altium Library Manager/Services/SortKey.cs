@@ -13,8 +13,9 @@ namespace Altium_Library_Manager.Services
         // A code (4K7, 1R02, 4n7: the letter is the decimal point) or a number with an optional prefix (1 kOhm, 100nF,
         // 1K_0603). A prefix counts only before a unit or the end of the word, so "2 Max" or "M3" keep their letters.
         [GeneratedRegex(
-            @"(?<int>\d+)(?<prefix>[pnuµμmkKMGRпнмкМГ]|мк)(?<code>\d+)(?![.,]\d)" +
-            @"|(?<int>\d+)(?:[.,](?<frac>\d+))?(?:\s?(?<prefix>[pnuµμmkKMGпнмкМГ]|мк)(?=(?:Ohms?|ohms?|OHMS?|Ω|R|F|H|Hz|V|A|W|s|Ом|Ф|Гн|Гц|В|А|Вт)?(?![\p{L}\d])))?")]
+            // Only the digits 0-9: the quick check in For looks for those, and the key is built from them
+            @"(?<int>[0-9]+)(?<prefix>[pnuµμmkKMGRпнмкМГ]|мк)(?<code>[0-9]+)(?![.,][0-9])" +
+            @"|(?<int>[0-9]+)(?:[.,](?<frac>[0-9]+))?(?:\s?(?<prefix>[pnuµμmkKMGпнмкМГ]|мк)(?=(?:Ohms?|ohms?|OHMS?|Ω|R|F|H|Hz|V|A|W|s|Ом|Ф|Гн|Гц|В|А|Вт)?(?![\p{L}0-9])))?")]
         private static partial Regex Number();
 
         /// <summary>The sort key of a text; a text without digits is its own key.</summary>

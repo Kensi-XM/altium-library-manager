@@ -189,7 +189,7 @@ This adds many similar components at once, differing in their value: resistors o
 1. In the table, **select a row like the ones you want**. Its fields are the starting point, so the new rows look the same.
 2. Open **Add elements**. The **Element** type is chosen from the table's name; change it if needed.
 3. Choose the values: **Standard series** with a range, or a **List**.
-4. Check the **Fields**: what each new row gets.
+4. Check the **Fields**: what each new row gets. They are in groups, and fields that belong together share a row: each footprint's Ref next to its Path, each link's text next to its URL.
 5. Check **Rows**, the preview of what will be added.
 6. Press **Add rows**. They are added as one step of [Undo](#editing), and they aren't in the database until you save.
 

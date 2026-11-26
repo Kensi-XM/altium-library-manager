@@ -44,6 +44,9 @@ namespace Altium_Library_Manager.Tests
             {
                 foreach (var text in new[] { "", "0", "000000000000000000000000000000001", new string('9', 2000), "1e999", "1.", ".5", "1..2", "k1", "1kk", "4K7K7", "1 k", "µ", "1µ" })
                     Altium_Library_Manager.Services.SortKey.For(text);
+                // Digits of other scripts are text: only 0-9 make the key's numbers
+                True(Altium_Library_Manager.Services.SortKey.For("1٤٧").EndsWith("٤٧", StringComparison.Ordinal), "other digits kept as they are");
+                Equal(18 + 2, Altium_Library_Manager.Services.SortKey.For("1٤٧").Length, "one number");
             });
         }
 

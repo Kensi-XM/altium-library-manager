@@ -85,6 +85,7 @@ namespace Altium_Library_Manager
             Update();
             Loaded += (_, _) =>
             {
+                FitToFields();
                 (SeriesRadio.IsChecked == true ? FromBox : ValuesList).Focus();
                 if (problems.Count > 0)
                     AppDialog.Warning(this, "Add elements", "Some element types couldn't be read", string.Join("\n", problems));
@@ -92,6 +93,34 @@ namespace Altium_Library_Manager
         }
 
         private ElementType Type => (ElementType)KindCombo.SelectedItem;
+
+        // Wide enough for a Ref and a Path side by side
+        private const double FittedWidth = 1320;
+
+        /// <summary>
+        /// Opens as large as the fields need, so all of them show without resizing the window: taller by what the
+        /// field list can't show, wider for the rows of two fields, never past the screen, still centered on the
+        /// main window. A table with more fields than fit gets the whole screen height, and the list scrolls.
+        /// </summary>
+        private void FitToFields()
+        {
+            if (ScreenFit.WorkArea(this) is not { } area)
+                return;
+            UpdateLayout();
+            var missing = Math.Max(FieldScroller.ExtentHeight - FieldScroller.ViewportHeight, 0);
+            var height = Math.Min(missing > 0 ? ActualHeight + missing + 4 : ActualHeight, area.Height);
+            var width = Math.Min(Math.Max(ActualWidth, FittedWidth), area.Width);
+            if (height <= ActualHeight && width <= ActualWidth)
+                return;
+            var (grownX, grownY) = ((width - ActualWidth) / 2, (height - ActualHeight) / 2);
+            Width = width;
+            Height = height;
+            if (Owner != null)
+            {
+                Left = Math.Clamp(Left - grownX, area.Left, area.Right - width);
+                Top = Math.Clamp(Top - grownY, area.Top, area.Bottom - height);
+            }
+        }
 
         /// <summary>Starts from what the type offers: its series or list, and its fields if it is a saved set.</summary>
         private void LoadType()
@@ -155,8 +184,8 @@ namespace Altium_Library_Manager
             _fields.AddRange(fields.Except(leading).OrderBy(f => f.Pattern.Length == 0));
             foreach (var field in _fields)
                 field.PropertyChanged += Field_Changed;
-            FieldList.ItemsSource = null;
-            FieldList.ItemsSource = _fields;
+            FieldList.ItemsSource = ElementFieldGroups.Build(_fields, _partNumberField, _valueField);
+            FieldScroller.ScrollToTop();
             var source = row != null && _partNumberField != null ? Convert.ToString(row[_partNumberField]) : null;
             FieldsTitle.Text = string.IsNullOrEmpty(source) ? "Fields" : $"Fields, from {source}";
             var sample = ElementValues.Parse(type, "4.7") is { } number ? ElementValues.Format(type, number) : new ElementValue("Red", "Red");
@@ -219,7 +248,8 @@ namespace Altium_Library_Manager
             if (!_loading && name != _shownSeries && ElementValues.CanAddE24(name))
                 WithE24Check.IsChecked = true;
             _shownSeries = name;
-            WithE24Check.Visibility = ElementValues.CanAddE24(name) ? Visibility.Visible : Visibility.Collapsed;
+            // Hidden, not collapsed: its place stays, so nothing moves when another series is picked
+            WithE24Check.Visibility = ElementValues.CanAddE24(name) ? Visibility.Visible : Visibility.Hidden;
         }
 
         private string SelectedSeries()

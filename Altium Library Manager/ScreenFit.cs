@@ -33,6 +33,21 @@ namespace Altium_Library_Manager
                 SetWindowPos(handle, IntPtr.Zero, x, y, width, height, SWP_NOZORDER | SWP_NOACTIVATE);
         }
 
+        /// <summary>The work area of the monitor the window is on, in DIPs (as Left, Top, Width and Height are); null
+        /// before the window has a handle.</summary>
+        public static Rect? WorkArea(Window window)
+        {
+            var handle = new WindowInteropHelper(window).Handle;
+            var monitor = handle == IntPtr.Zero ? IntPtr.Zero : MonitorFromWindow(handle, MONITOR_DEFAULTTONEAREST);
+            var info = new MONITORINFO { cbSize = Marshal.SizeOf<MONITORINFO>() };
+            if (monitor == IntPtr.Zero || !GetMonitorInfo(monitor, ref info))
+                return null;
+            var dpi = System.Windows.Media.VisualTreeHelper.GetDpi(window);
+            var work = info.rcWork;
+            return new Rect(work.Left / dpi.DpiScaleX, work.Top / dpi.DpiScaleY,
+                (work.Right - work.Left) / dpi.DpiScaleX, (work.Bottom - work.Top) / dpi.DpiScaleY);
+        }
+
         /// <summary>
         /// How far a maximized window reaches past the work area on each side (in DIPs): Windows extends it by its
         /// resize frame plus a padded border, so content laid out to the window's edge would be cut off (the title bar
