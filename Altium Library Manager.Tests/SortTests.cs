@@ -9,6 +9,44 @@ namespace Altium_Library_Manager.Tests
     /// <summary>Columns with a comma in their name: DataView.Sort can't name them, so they sort through a hidden twin.</summary>
     public static class SortTests
     {
+        /// <summary>The sort key alone: compared as the grid compares text (current culture, case ignored).</summary>
+        public static void RunKeys()
+        {
+            Section("Sort keys: numbers by value");
+            var compare = StringComparer.Create(System.Globalization.CultureInfo.CurrentCulture, true);
+            void Sorted(string what, params string[] expected)
+            {
+                var shuffled = expected.Reverse().Concat(expected.Where((_, i) => i % 2 == 0)).Distinct().ToList();
+                Equal(string.Join(" | ", expected), string.Join(" | ", shuffled.OrderBy(Altium_Library_Manager.Services.SortKey.For, compare)), what);
+            }
+            Test("resistor descriptions", () => Sorted("descriptions",
+                "RES SMD 0 Ohm 1/10W 0603", "RES SMD 1 Ohm 1% 1/10W 0603", "RES SMD 1.02 Ohm 1% 1/10W 0603", "RES SMD 9.76 Ohm 1% 1/10W 0603",
+                "RES SMD 10 Ohm 1% 1/10W 0603", "RES SMD 999 Ohm 1% 1/10W 0603", "RES SMD 1 kOhm 1% 1/10W 0603", "RES SMD 4.7 kOhm 1% 1/10W 0603",
+                "RES SMD 4.75 kOhm 1% 1/10W 0603", "RES SMD 6.49 kOhm 1% 1/10W 0603", "RES SMD 1 MOhm 1% 1/10W 0603"));
+            Test("part numbers with R, K and M codes", () => Sorted("codes",
+                "0R_0603", "1R_0603", "1R02_0603", "4R7_0603", "10R_0603", "11R5_0603", "1K_0603", "1K02_0603", "4K7_0603", "4K75_0603", "10K_0603", "1M_0603", "1M5_0603"));
+            Test("capacitors and inductors", () => Sorted("prefixes",
+                "1pF", "4p7", "100pF", "1nF", "4n7", "100nF", "1uF", "2u2", "4.7 µF", "10µF", "100 uF", "1mF"));
+            Test("plain numbers: 2 before 10, leading zeros", () => Sorted("numbers",
+                "C1", "C2", "C9", "C10", "C11", "C100", "SOT23-3", "SOT23-5", "SOT223"));
+            Test("words keep their letters: M3, 2 Max, 0603_N", () => Sorted("words",
+                "Bolt M3", "Bolt M4", "Bolt M10", "RES 0402_N", "RES 0603_L", "RES 0603_M", "RES 0603_N", "RES 1206_N"));
+            Test("comma decimals and Russian units", () => Sorted("russian",
+                "2,2 мкФ", "100 мкФ", "4,7 Ом", "47 Ом", "1 кОм", "4,7 кОм", "1 МОм"));
+            Test("same value, different spelling: same key", () =>
+            {
+                Equal(Altium_Library_Manager.Services.SortKey.For("4K7"), Altium_Library_Manager.Services.SortKey.For("4.7k"), "4K7 = 4.7k");
+                Equal(Altium_Library_Manager.Services.SortKey.For("4700"), Altium_Library_Manager.Services.SortKey.For("4.7k"), "4700 = 4.7k");
+                Equal("Resistor", Altium_Library_Manager.Services.SortKey.For("Resistor"), "no digits: as it is");
+                Equal(Altium_Library_Manager.Services.SortKey.For("0"), Altium_Library_Manager.Services.SortKey.For("0.000"), "zero");
+            });
+            Test("long digit runs and odd text don't throw", () =>
+            {
+                foreach (var text in new[] { "", "0", "000000000000000000000000000000001", new string('9', 2000), "1e999", "1.", ".5", "1..2", "k1", "1kk", "4K7K7", "1 k", "µ", "1µ" })
+                    Altium_Library_Manager.Services.SortKey.For(text);
+            });
+        }
+
         public static void Run()
         {
             Section("Sorting columns with a comma in their names");
@@ -42,7 +80,7 @@ namespace Altium_Library_Manager.Tests
             {
                 True(tab.Table!.Columns.Count > TableTab.FieldColumns(tab.Table).Count(), "there are twins");
                 Equal(TableTab.FieldColumns(tab.Table).Count(), grid.Columns.Count, "no column for them");
-                True(grid.Columns.All(c => c.Header is string name && tab.Table.Columns[name]!.Expression.Length == 0), "headers");
+                True(grid.Columns.All(c => c.Header is string name && !TableTab.IsSortTwin(tab.Table.Columns[name]!)), "headers");
                 True(!tab.IsDirty, "a twin changes nothing");
             });
             Test("text: up, then down, with the arrow on the header", () =>
@@ -219,6 +257,64 @@ namespace Altium_Library_Manager.Tests
                 True(plain.Tab.Save(plain.Window), "saved: " + string.Join(" ", Dialogs.TakeLast(1)));
                 plain.CheckSameAsDatabase("keyless with a twin");
                 plain.Tab.Discard();
+            });
+            Test("text sorts by value: Ohm, kOhm, MOhm and 4K7 codes", () =>
+            {
+                var descriptions = new[] { "RES 1 MOhm", "RES 4.75 kOhm", "RES 1 Ohm", "RES 10 Ohm", "RES 4.7 kOhm", "RES 1 kOhm", "RES 2 Ohm", "RES 9.76 Ohm", "RES 1.02 kOhm", "RES 100 kOhm", "RES 1.02 Ohm", "RES 0 Ohm" };
+                var codes = new[] { "1M_0603", "4K75_0603", "1R_0603", "10R_0603", "4K7_0603", "1K_0603", "2R_0603", "9R76_0603", "1K02_0603", "100K_0603", "1R02_0603", "0R_0603" };
+                var rows = host.Items.Select(v => v.Row).ToList();
+                for (var i = 0; i < rows.Count; i++)
+                {
+                    Equal(null, tab.ChangeField(rows[i], "Description", descriptions[i]), "description");
+                    Equal(null, tab.ChangeField(rows[i], "Temp, Max", codes[i]), "code");
+                }
+                Click("Description");
+                InOrder(["RES 0 Ohm", "RES 1 Ohm", "RES 1.02 Ohm", "RES 2 Ohm", "RES 9.76 Ohm", "RES 10 Ohm", "RES 1 kOhm", "RES 1.02 kOhm", "RES 4.7 kOhm", "RES 4.75 kOhm", "RES 100 kOhm", "RES 1 MOhm"], "Description", "by value");
+                Click("Temp, Max");
+                InOrder(["0R_0603", "1R_0603", "1R02_0603", "2R_0603", "9R76_0603", "10R_0603", "1K_0603", "1K02_0603", "4K7_0603", "4K75_0603", "100K_0603", "1M_0603"], "Temp, Max", "codes, in a column with a comma");
+                Click("Temp, Max");
+                Equal("1M_0603", Shown("Temp, Max")[0], "down");
+                Unsorted();
+            });
+            Test("an edited value moves to its place by value; undo puts it back; keys are never saved", () =>
+            {
+                Equal(null, tab.ChangeField(host.Item("PN-001").Row, "Description", "RES 2 Ohm"), "first");
+                Equal(null, tab.ChangeField(host.Item("PN-002").Row, "Description", "RES 1 kOhm"), "second");
+                Equal(null, tab.ChangeField(host.Item("PN-003").Row, "Description", "RES 10 Ohm"), "third");
+                Click("Description");
+                // The order of the three rows among the shown ones
+                string Three() => string.Join(" ", host.Items.Select(v => Text(v, "Part Number")).Where(p => p is "PN-001" or "PN-002" or "PN-003"));
+                Equal("PN-001 PN-003 PN-002", Three(), "sorted: 2 Ohm, 10 Ohm, 1 kOhm");
+                TypeInCell(host, host.Item("PN-002"), "Description", "RES 5 Ohm");
+                Equal("PN-001 PN-002 PN-003", Three(), "moved by its new value: 2, 5, 10 Ohm");
+                True(tab.Save(host.Window), "saved");
+                host.CheckSameAsDatabase("keys aren't fields");
+                True(!tab.IsDirty, "nothing left to save");
+                tab.Undo();
+                Wait(5);
+                True(tab.IsDirty, "the undo is a change");
+                Equal("RES 1 kOhm", Text(host.Item("PN-002"), "Description"), "undone");
+                Equal("PN-001 PN-003 PN-002", Three(), "back in its place");
+                Unsorted();
+                tab.SetTable(test.Database.LoadTable("T"), test.Database.GetTableFields("T"), test.Database);
+                Wait();
+                True(!tab.IsDirty, "a table read again has nothing to save");
+            });
+            Test("rows added and pasted get their keys", () =>
+            {
+                tab.AddRows([new Dictionary<string, string> { ["Part Number"] = "ADD-K", ["Description"] = "RES 3 Ohm" }]);
+                Wait(5);
+                Click("Description");
+                if (host.Column("Description").SortDirection != ListSortDirection.Ascending)
+                    Click("Description");
+                var shown = Shown("Description");
+                // The descriptions are "RES n Ohm" (n from 1 to 12, some changed by the test before), all in Ohms
+                var values = shown.Select(d => double.Parse(d.Split(' ')[1], System.Globalization.CultureInfo.InvariantCulture)).ToList();
+                True(shown.Contains("RES 3 Ohm") && values.SequenceEqual(values.Order()), "in order: " + string.Join(" | ", shown));
+                tab.Undo();
+                Wait(5);
+                True(!tab.IsDirty, "dirty: " + Why(tab));
+                Unsorted();
             });
             Test("the table read again sorts the same way", () =>
             {

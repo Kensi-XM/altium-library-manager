@@ -85,6 +85,8 @@ The **In:** button picks the columns to search, for example only Part Number. It
 ## Sorting
 Click a column header to sort by it, and click it again to reverse the order. An arrow shows the direction.
 
+Numbers in text sort by their value: 2 comes before 10, and 1 Ohm, 4K7, 4.75 kOhm and 1 MOhm (or 100nF, 4n7, 1R_0603) go in the order of the values, not of the letters.
+
 To sort by several columns, click the first one, then hold `Shift` and click the next. The first stays the main one; the second puts in order the rows that are equal in the first. With `Shift`, clicking a column again reverses only that column.
 
 > Try it on a column with repeats: click **Manufacturer**, then `Shift` + click **Value**. A column with no repeats gives the second one nothing to do.

@@ -108,7 +108,13 @@ namespace Altium_Library_Manager
             }, DispatcherPriority.Background);
         }
 
-        private void Table_ColumnChanged(object sender, DataColumnChangeEventArgs e) => RowValuesChanged?.Invoke(e.Row);
+        private void Table_ColumnChanged(object sender, DataColumnChangeEventArgs e)
+        {
+            if (e.Column is not { } column || IsSortTwin(column))
+                return;
+            UpdateSortKey(e.Row, column);
+            RowValuesChanged?.Invoke(e.Row);
+        }
 
         private void UpdateEditing()
         {
@@ -124,7 +130,7 @@ namespace Altium_Library_Manager
 
         /// <summary>AutoNumber values are given by Access; binary data can't be edited as text.</summary>
         private bool IsReadOnlyColumn(string column) =>
-            FieldOf(column)?.Type == FieldType.AutoNumber || Table?.Columns[column] is { } c && (c.DataType == typeof(byte[]) || c.Expression.Length > 0);
+            FieldOf(column)?.Type == FieldType.AutoNumber || Table?.Columns[column] is { } c && (c.DataType == typeof(byte[]) || IsSortTwin(c));
 
         private IEnumerable<DataColumn> EditableColumns() =>
             Table!.Columns.Cast<DataColumn>().Where(c => !IsReadOnlyColumn(c.ColumnName));

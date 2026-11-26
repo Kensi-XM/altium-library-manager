@@ -175,18 +175,35 @@ namespace Altium_Library_Manager
         }
 
         /// <summary>The table's fields, without the hidden columns added for sorting.</summary>
-        public static IEnumerable<DataColumn> FieldColumns(DataTable table) => table.Columns.Cast<DataColumn>().Where(c => c.Expression.Length == 0);
+        public static IEnumerable<DataColumn> FieldColumns(DataTable table) => table.Columns.Cast<DataColumn>().Where(c => !IsSortTwin(c));
 
-        private static string SortTwinName(DataColumn column) => $"⁠sort {column.Ordinal}";
+        // The twins' names start with an invisible character, so no field of the database can have one
+        private const string SortTwinPrefix = "⁠sort ";
 
-        // The grid sorts through DataView.Sort, a text that can't hold a comma in a column name ("Rds On (Max) @ Id, Vgs"
-        // would throw). Such a column gets a hidden computed twin with a plain name, and the grid sorts by that: live, like
-        // any column, and computed values change neither the row's state nor anything saved. (A LINQ-ordered view was
-        // no way out: its comparer gets no row for some records during an edit, which corrupts the table's index.)
+        private static string SortTwinName(DataColumn column) => SortTwinPrefix + column.Ordinal;
+
+        public static bool IsSortTwin(DataColumn column) => column.ColumnName.StartsWith(SortTwinPrefix, StringComparison.Ordinal);
+
+        // The grid sorts through DataView.Sort, which compares text letter by letter (1 MOhm next to 1 Ohm, 10 before 2)
+        // and can't name a column with a comma ("Rds On (Max) @ Id, Vgs" would throw). So a text column gets a hidden
+        // twin holding its sort key (SortKey: numbers by value), kept up to date on every change (Table_ColumnChanged),
+        // and the grid sorts by that. Any other column with a comma gets a computed twin with a plain name. Neither is
+        // saved, searched or shown. (A LINQ-ordered view was no way out: its comparer gets no row for some records
+        // during an edit, which corrupts the table's index.)
         private static void AddSortTwins(DataTable table)
         {
-            foreach (var column in FieldColumns(table).Where(c => c.ColumnName.Contains(',') && c.DataType != typeof(byte[]) && c.DataType != typeof(Guid)).ToList())
-                if (!table.Columns.Contains(SortTwinName(column)))
+            foreach (var column in FieldColumns(table).ToList())
+            {
+                if (table.Columns.Contains(SortTwinName(column)))
+                    continue;
+                if (column.DataType == typeof(string))
+                {
+                    var twin = table.Columns.Add(SortTwinName(column), typeof(string));
+                    foreach (DataRow row in table.Rows)
+                        if (row.RowState != DataRowState.Deleted)
+                            row[twin] = SortKeyOf(row[column]);
+                }
+                else if (column.ColumnName.Contains(',') && column.DataType != typeof(byte[]) && column.DataType != typeof(Guid))
                     try
                     {
                         table.Columns.Add(SortTwinName(column), column.DataType, $"[{column.ColumnName.Replace(@"\", @"\\").Replace("]", @"\]")}]");
@@ -196,6 +213,25 @@ namespace Altium_Library_Manager
                         // A name the expression can't hold: the table still opens, this column just can't be sorted
                         System.Diagnostics.Debug.WriteLine($"No sorting for {column.ColumnName}: {ex.Message}");
                     }
+            }
+            // Keys written into a freshly read table are no change to save
+            foreach (DataRow row in table.Rows)
+                if (row.RowState == DataRowState.Modified &&
+                    FieldColumns(table).All(c => Equals(row[c, DataRowVersion.Original], row[c, DataRowVersion.Current])))
+                    row.AcceptChanges();
+        }
+
+        private static object SortKeyOf(object value) => value is string text ? Services.SortKey.For(text) : DBNull.Value;
+
+        /// <summary>Keeps the sort key of a changed text field up to date.</summary>
+        private static void UpdateSortKey(DataRow row, DataColumn column)
+        {
+            if (column.DataType != typeof(string) || row.Table.Columns[SortTwinName(column)] is not { Expression.Length: 0 } twin ||
+                row.RowState == DataRowState.Deleted)
+                return;
+            var key = SortKeyOf(row[column]);
+            if (!Equals(row[twin], key))
+                row[twin] = key;
         }
 
         public event PropertyChangedEventHandler? PropertyChanged;
@@ -361,15 +397,12 @@ namespace Altium_Library_Manager
             {
                 if (column.Header is string field && Table!.Columns[field] is { } source)
                 {
-                    if (source.Expression.Length > 0)
+                    if (IsSortTwin(source))
                         continue;
-                    if (field.Contains(','))
-                    {
-                        if (Table.Columns.Contains(SortTwinName(source)))
-                            column.SortMemberPath = SortTwinName(source);
-                        else
-                            column.CanUserSort = false;
-                    }
+                    if (Table.Columns.Contains(SortTwinName(source)))
+                        column.SortMemberPath = SortTwinName(source);
+                    else if (field.Contains(','))
+                        column.CanUserSort = false;
                 }
 
                 // In a binding path / and . mean something else: "Size / Dimension" as a path leaves the cells empty and

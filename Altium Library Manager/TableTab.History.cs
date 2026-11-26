@@ -233,7 +233,7 @@ namespace Altium_Library_Manager
         private static void Normalize(DataRow row)
         {
             if (row.RowState == DataRowState.Modified &&
-                row.Table.Columns.Cast<DataColumn>().All(c => Equals(row[c, DataRowVersion.Original], row[c, DataRowVersion.Current])))
+                FieldColumns(row.Table).All(c => Equals(row[c, DataRowVersion.Original], row[c, DataRowVersion.Current])))
                 row.AcceptChanges();
         }
 

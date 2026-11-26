@@ -115,7 +115,7 @@ namespace Altium_Library_Manager.Tests
             {
                 grid.Items.SortDescriptions.Add(new System.ComponentModel.SortDescription(host.Column("Size / Dimension").SortMemberPath, System.ComponentModel.ListSortDirection.Descending));
                 Wait();
-                Equal("9 mm", Text(host.Items[0], "Size / Dimension"), "sorted");
+                Equal("12 mm", Text(host.Items[0], "Size / Dimension"), "sorted, by the number");
                 grid.Items.SortDescriptions.Clear();
                 tab.Query = "7 mm";
                 tab.ApplySearchNow();
