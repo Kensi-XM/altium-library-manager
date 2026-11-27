@@ -186,15 +186,23 @@ The 3D view can be turned off in [Options](#options), which saves memory. It can
 This adds many similar components at once, differing in their value: resistors of a series, a list of capacitors, and so on. Open it with **Add elements** in the toolbar, with Edit on.
 
 ## Step by step
-1. In the table, **select a row like the ones you want**. Its fields are the starting point, so the new rows look the same.
-2. Open **Add elements**. The **Element** type is chosen from the table's name; change it if needed.
-3. Choose the values: **Standard series** with a range, or a **List**.
+1. In the table, **select a row like the ones you want**. Its fields are the starting point, so the new rows look the same. With no row selected, the first row shown is used.
+2. Open **Add elements**. The **Element** type is chosen from the table's name; change it if needed. The window remembers, for each table, how you left it: the type, the series, From and To, the list and the ticks.
+3. Choose the values: **Standard series** with a range, or a **List**. For resistors, **+ 0 Ohm jumper** adds a jumper first: 0R in the codes, "0 Ohm Jumper" in the description, without its tolerance. Values the table has already are left out, so in a full table it adds just the jumper.
 4. Check the **Fields**: what each new row gets. They are in groups, and fields that belong together share a row: each footprint's Ref next to its Path, each link's text next to its URL.
 5. Check **Rows**, the preview of what will be added.
 6. Press **Add rows**. They are added as one step of [Undo](#editing), and they aren't in the database until you save.
 
+## Updating rows the table has
+Under **Rows**, choose **Update existing rows** to change fields of components the table has already: a new footprint path, a description written another way, a datasheet for all of them.
+
+1. Choose the values as for adding, so that the **Part Number** text gives the Part Numbers of the rows to change (`{Value}_0603` with E24 from 10 to 1M finds those rows).
+2. Tick the box in front of each field to change, and give it its new text. Fields not ticked stay as they are.
+3. **Rows** shows what each row would get: which fields change, rows that are already like this, and Part Numbers the table hasn't (nothing is added in this mode).
+4. Press **Update rows**: all of them change as one step of [Undo](#editing), and reach the database when you save.
+
 ## Values
-**Standard series** makes the values of a series between From and To: E3 to E192, R10, or 1-2-5. E48, E96 and E192 have no 4.7 or 3.3, as the standard has it (E96 has 4.64 and 4.75); choose **E96 + E24** and the like to have the usual values too, which makers sell in 1% and better. **List** takes values you type, one per line or separated by commas, and ready lists of the type's usual values.
+**Standard series** makes the values of a series between From and To: E3 to E192, R10, or 1-2-5. E48, E96 and E192 have no 4.7 or 3.3, as the standard has it (E96 has 4.64 and 4.75); tick **+ E24** next to the series to have the usual values too, which makers sell in 1% and better. **List** takes values you type, one per line or separated by commas, and ready lists of the type's usual values.
 
 Values can be written the way you are used to:
 

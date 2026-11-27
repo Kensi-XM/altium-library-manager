@@ -713,8 +713,11 @@ namespace Altium_Library_Manager.Tests
 
             Section("Add elements");
             var types = ElementTypes.Load([]);
-            AddElementsWindow Open()
+            // Each test starts from the type's own values, not from how the test before left the window
+            AddElementsWindow Open(bool remembered = false)
             {
+                if (!remembered)
+                    App.Settings.Current.Tables.AddElements.Clear();
                 var dialog = new AddElementsWindow(tab, test.Database, new AltiumRenderService()) { ShowActivated = false, Left = -3000 };
                 dialog.Show();
                 Wait();
@@ -793,14 +796,28 @@ namespace Altium_Library_Manager.Tests
                 True(dialog.ActualHeight <= area.Height + 1 && dialog.ActualWidth <= area.Width + 1, "within the screen");
                 if (Environment.GetEnvironmentVariable("ALM_SNAPSHOT") is { Length: > 0 } file)
                 {
+                    void Shot(string path)
+                    {
+                        Wait(200);
+                        var bitmap = new System.Windows.Media.Imaging.RenderTargetBitmap((int)dialog.ActualWidth, (int)dialog.ActualHeight, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
+                        bitmap.Render(dialog);
+                        var png = new System.Windows.Media.Imaging.PngBitmapEncoder();
+                        png.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bitmap));
+                        using var stream = System.IO.File.Create(path);
+                        png.Save(stream);
+                    }
                     Part<ComboBox>(dialog, "SeriesCombo").SelectedItem = ElementValues.AllSeries.First(s => s.Name == "E96");
-                    Wait(200);
-                    var bitmap = new System.Windows.Media.Imaging.RenderTargetBitmap((int)dialog.ActualWidth, (int)dialog.ActualHeight, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
-                    bitmap.Render(dialog);
-                    var png = new System.Windows.Media.Imaging.PngBitmapEncoder();
-                    png.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bitmap));
-                    using var stream = System.IO.File.Create(file);
-                    png.Save(stream);
+                    Part<CheckBox>(dialog, "JumperCheck").IsChecked = true;
+                    Shot(file);
+                    // Updating: the Footprint Path of the first rows
+                    Part<CheckBox>(dialog, "JumperCheck").IsChecked = false;
+                    Part<RadioButton>(dialog, "ListRadio").IsChecked = true;
+                    Part<TextBox>(dialog, "ValuesList").Text = "1R, 2R, 3R, 4R, 99R";
+                    Fields(dialog).First(f => f.Name == "Part Number").Pattern = "PN-00{N}";
+                    Part<RadioButton>(dialog, "UpdateModeRadio").IsChecked = true;
+                    Fields(dialog).First(f => f.Name == "Footprint Path").Update = true;
+                    Shot(System.IO.Path.ChangeExtension(file, null) + "-update.png");
+                    App.Settings.Current.Tables.AddElements.Clear();
                 }
                 dialog.Close();
             });
@@ -880,6 +897,179 @@ namespace Altium_Library_Manager.Tests
                 True(!Codes().Contains("4K7 ") && Codes().Contains("4K75"), Codes());
                 Equal(9, ElementValues.AllSeries.Count, "the list stays short");
                 dialog.Close();
+            });
+            Test("a 0 Ohm jumper: first, written 0R, \"Jumper\" in the description; resistors only", () =>
+            {
+                tab.SelectItem(host.Items[0]);
+                var dialog = Open();
+                Pick(dialog, "Resistor");
+                Part<RadioButton>(dialog, "SeriesRadio").IsChecked = true;
+                Part<ComboBox>(dialog, "SeriesCombo").SelectedItem = ElementValues.AllSeries.First(s => s.Name == "E12");
+                Part<TextBox>(dialog, "FromBox").Text = "10";
+                Part<TextBox>(dialog, "ToBox").Text = "100";
+                var jumper = Part<CheckBox>(dialog, "JumperCheck");
+                Equal(Visibility.Visible, jumper.Visibility, "for a resistor");
+                Wait();
+                var without = Preview(dialog).Count;
+                jumper.IsChecked = true;
+                Wait();
+                var rows = Preview(dialog);
+                Equal(without + 1, rows.Count, "one more row");
+                Equal("0R", rows[0].Value, "value");
+                Equal("RES 0 Ohm Jumper", rows[0].Description, "description");
+                Equal("PN-001 0R", rows[0].PartNumber, "part number");
+                Equal("", rows[0].Note, "can be added");
+                True(Part<Button>(dialog, "AddButton").IsEnabled, "enabled");
+                // From 0 says where the jumper is
+                Part<TextBox>(dialog, "FromBox").Text = "0";
+                Wait();
+                True(Part<TextBlock>(dialog, "ErrorText").Text.Contains("jumper"), Part<TextBlock>(dialog, "ErrorText").Text);
+                True(!Part<Button>(dialog, "AddButton").IsEnabled, "a wrong range stops the button");
+                Part<TextBox>(dialog, "FromBox").Text = "10";
+                // Added like the other rows, in one step
+                var count = host.Items.Count;
+                Wait();
+                Call(dialog, "Add_Click", null, null);
+                Wait();
+                Equal(count + without + 1, host.Items.Count, "added");
+                True(host.Items.Any(v => v["Value"] as string == "0R" && v["Description"] as string == "RES 0 Ohm Jumper"), "the jumper row");
+                tab.Undo();
+                Equal(count, host.Items.Count, "undone");
+                // Not for capacitors: hidden, its place kept
+                var other = Open();
+                Pick(other, "Capacitor, ceramic");
+                Wait();
+                Equal(Visibility.Hidden, Part<CheckBox>(other, "JumperCheck").Visibility, "not for a capacitor");
+                other.Close();
+                Reset();
+            });
+            Test("updating existing rows: the ticked fields, found by Part Number, in one step", () =>
+            {
+                tab.SelectItem(host.Items[0]);
+                var dialog = Open();
+                Pick(dialog, "Resistor");
+                Part<RadioButton>(dialog, "ListRadio").IsChecked = true;
+                Part<TextBox>(dialog, "ValuesList").Text = "1R, 2R, 3R";
+                Fields(dialog).First(f => f.Name == "Part Number").Pattern = "PN-00{N}";
+                var path = Fields(dialog).First(f => f.Name == "Footprint Path");
+                path.Pattern = @"PCB\New.PcbLib";
+                Wait();
+                var ticks = FindAll<CheckBox>(Part<ItemsControl>(dialog, "FieldList"));
+                True(ticks.Count > 0 && ticks.All(t => t.Visibility == Visibility.Hidden), "no ticks when adding, their place kept");
+                Part<RadioButton>(dialog, "UpdateModeRadio").IsChecked = true;
+                Wait();
+                True(ticks.Where(t => t.DataContext is FieldCell { Field.Name: not "Part Number" }).All(t => t.Visibility == Visibility.Visible), "ticks when updating");
+                Equal(Visibility.Hidden, ticks.First(t => t.DataContext is FieldCell { Field.Name: "Part Number" }).Visibility, "none for the Part Number, which finds the rows");
+                True(!Part<Button>(dialog, "AddButton").IsEnabled, "nothing ticked: nothing to do");
+                True(Part<TextBlock>(dialog, "ErrorText").Text.Contains("Tick"), Part<TextBlock>(dialog, "ErrorText").Text);
+                // A field's own tick in the window
+                ticks.First(t => t.DataContext is FieldCell { Field.Name: "Footprint Path" }).IsChecked = true;
+                Wait();
+                True(path.Update, "ticked");
+                var rows = Preview(dialog);
+                Equal("PN-001 PN-002 PN-003", string.Join(" ", rows.Select(r => r.PartNumber)), "the rows found");
+                True(rows.All(r => r.Note == "Changes Footprint Path"), string.Join(" | ", rows.Select(r => r.Note)));
+                Equal("Rows: 3 to change", Part<TextBlock>(dialog, "PreviewTitle").Text, "title");
+                Equal("Update 3 rows", Part<Button>(dialog, "AddButton").Content, "button");
+                True(Part<Button>(dialog, "AddButton").IsEnabled, "enabled");
+                // Part Numbers the table hasn't
+                Fields(dialog).First(f => f.Name == "Part Number").Pattern = "PN-9{N}";
+                Wait();
+                True(Preview(dialog).All(r => r.Note == "Not in the table") && !Part<Button>(dialog, "AddButton").IsEnabled, "none found");
+                Equal("Rows: 0 to change, 3 not in the table", Part<TextBlock>(dialog, "PreviewTitle").Text, "title");
+                Fields(dialog).First(f => f.Name == "Part Number").Pattern = "PN-00{N}";
+                Wait();
+
+                var others = host.Items.Where(v => v["Part Number"] is not ("PN-001" or "PN-002" or "PN-003")).Select(v => (string)v["Footprint Path"]).ToList();
+                var descriptions = host.Items.Select(v => (string)v["Description"]).ToList();
+                Call(dialog, "Add_Click", null, null);
+                Wait();
+                True(new[] { "PN-001", "PN-002", "PN-003" }.All(p => host.Item(p)["Footprint Path"] as string == @"PCB\New.PcbLib"), "changed");
+                Equal(string.Join("|", others), string.Join("|", host.Items.Where(v => v["Part Number"] is not ("PN-001" or "PN-002" or "PN-003")).Select(v => (string)v["Footprint Path"])), "the others as they were");
+                Equal(string.Join("|", descriptions), string.Join("|", host.Items.Select(v => (string)v["Description"])), "fields not ticked as they were");
+                Equal("Update 3 rows", tab.UndoDescription, "one step");
+                tab.Undo();
+                Wait();
+                True(host.Item("PN-001")["Footprint Path"] as string == @"PCB\R.PcbLib", "undone");
+                True(!tab.IsDirty, "dirty: " + Why(tab));
+
+                // The same again: already like this
+                var again = Open(remembered: true);
+                True(Part<RadioButton>(again, "UpdateModeRadio").IsChecked == true, "updating remembered");
+                True(Fields(again).First(f => f.Name == "Footprint Path").Update, "tick remembered");
+                Fields(again).First(f => f.Name == "Part Number").Pattern = "PN-00{N}";
+                Fields(again).First(f => f.Name == "Footprint Path").Pattern = @"PCB\R.PcbLib";
+                Wait();
+                True(Preview(again).All(r => r.Note == "Already like this"), string.Join(" | ", Preview(again).Select(r => r.Note)));
+                True(!Part<Button>(again, "AddButton").IsEnabled, "nothing to change");
+                // A ticked field left empty would empty the rows' field: said as such
+                var tolerance = Fields(again).First(f => f.Name == "Tol %");
+                tolerance.Pattern = "";
+                tolerance.Update = true;
+                Fields(again).First(f => f.Name == "Footprint Path").Pattern = @"PCB\New.PcbLib";
+                Wait();
+                True(Preview(again).All(r => r.Note == "Changes Footprint Path; Clears Tol %"), string.Join(" | ", Preview(again).Select(r => r.Note)));
+                tolerance.Update = false;
+                // Back to adding: no ticks, adding as before
+                Part<RadioButton>(again, "AddModeRadio").IsChecked = true;
+                Wait();
+                True(Part<Button>(again, "AddButton").Content is string add && add.StartsWith("Add", StringComparison.Ordinal), "adding again");
+                again.Close();
+                App.Settings.Current.Tables.AddElements.Clear();
+                Reset();
+            });
+            Test("with no row selected, the fields come from the first row shown", () =>
+            {
+                tab.SelectItem(null);
+                Wait();
+                var dialog = Open();
+                Pick(dialog, "Resistor");
+                Wait();
+                var first = host.Items[0];
+                Equal((string)first["Library Path"], Fields(dialog).First(f => f.Name == "Library Path").Pattern, "a field of the row");
+                Equal($"Fields, from {first["Part Number"]}", Part<TextBlock>(dialog, "FieldsTitle").Text, "says which row");
+                dialog.Close();
+            });
+            Test("opens as it was left for the table: type, series, range, list and ticks", () =>
+            {
+                tab.SelectItem(host.Items[0]);
+                var dialog = Open();
+                Pick(dialog, "Resistor");
+                Part<RadioButton>(dialog, "SeriesRadio").IsChecked = true;
+                Part<ComboBox>(dialog, "SeriesCombo").SelectedItem = ElementValues.AllSeries.First(s => s.Name == "E96");
+                Part<CheckBox>(dialog, "WithE24Check").IsChecked = false;
+                Part<TextBox>(dialog, "FromBox").Text = "22";
+                Part<TextBox>(dialog, "ToBox").Text = "470";
+                Part<TextBox>(dialog, "ValuesList").Text = "1K, 2K2";
+                Part<CheckBox>(dialog, "JumperCheck").IsChecked = true;
+                Wait();
+                var rows = Preview(dialog).Count;
+                dialog.Close();
+
+                var again = Open(remembered: true);
+                Equal("Resistor", ((ElementType)Part<ComboBox>(again, "KindCombo").SelectedItem).Name, "type");
+                Equal("E96", ((SeriesInfo)Part<ComboBox>(again, "SeriesCombo").SelectedItem).Name, "series");
+                True(Part<CheckBox>(again, "WithE24Check").IsChecked == false, "E24 stays off");
+                Equal("22", Part<TextBox>(again, "FromBox").Text, "from");
+                Equal("470", Part<TextBox>(again, "ToBox").Text, "to");
+                Equal("1K, 2K2", Part<TextBox>(again, "ValuesList").Text, "list");
+                True(Part<CheckBox>(again, "JumperCheck").IsChecked == true, "jumper");
+                True(Part<RadioButton>(again, "SeriesRadio").IsChecked == true, "series, not the list");
+                Equal(rows, Preview(again).Count, "the same rows");
+                // Picking another type starts from that type's own values
+                Pick(again, "Capacitor, ceramic");
+                Wait();
+                Equal(BuiltInElementTypes.All().First(t => t.Name == "Capacitor, ceramic").From, Part<TextBox>(again, "FromBox").Text, "the type's own range");
+                again.Close();
+                Equal("Capacitor, ceramic", App.Settings.Current.Tables.AddElements[tab.Name].Type, "remembered as left");
+                // Settings from a broken file: a missing choice is dropped, the others kept
+                var json = "{\"Version\":" + Altium_Library_Manager.Services.Settings.SettingsStore.CurrentVersion + ",\"Tables\":{\"AddElements\":{\"A\":null,\"B\":{\"Type\":\"Resistor\",\"Values\":null}}}}";
+                var file = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"alm-settings-{Guid.NewGuid():N}.json");
+                System.IO.File.WriteAllText(file, json);
+                var store = Altium_Library_Manager.Services.Settings.SettingsStore.Load(file);
+                True(!store.Current.Tables.AddElements.ContainsKey("A") && store.Current.Tables.AddElements.ContainsKey("B"), "repaired");
+                System.IO.File.Delete(file);
+                App.Settings.Current.Tables.AddElements.Clear();
             });
             Test("a type saved with E96 alone opens that way", () =>
             {

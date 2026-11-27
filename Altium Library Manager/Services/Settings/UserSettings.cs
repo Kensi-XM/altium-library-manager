@@ -103,6 +103,9 @@ namespace Altium_Library_Manager.Services.Settings
         /// is searched in all its columns.</summary>
         public Dictionary<string, List<string>> SearchColumns { get; set; } = [];
 
+        /// <summary>How Add elements was last set, by table name: the next time it opens the same way.</summary>
+        public Dictionary<string, AddElementsChoice> AddElements { get; set; } = [];
+
         /// <summary>The Details panel's Field column fits the field names, but takes at most this share of the
         /// panel width (0.2–0.7), unless its width was set by dragging (<see cref="DetailsFieldWidth"/>).</summary>
         public double DetailsFieldMaxShare { get; set; } = 0.45;
@@ -128,6 +131,37 @@ namespace Altium_Library_Manager.Services.Settings
     }
 
     /// <summary>How rows are changed in a table tab.</summary>
+    /// <summary>What Add elements was set to for a table. Anything that no longer fits (a type or series gone) is
+    /// left out when it opens.</summary>
+    public sealed class AddElementsChoice
+    {
+        public string? Type { get; set; }
+
+        /// <summary>A typed list rather than a series.</summary>
+        public bool List { get; set; }
+
+        public string? Series { get; set; }
+
+        public bool WithE24 { get; set; }
+
+        public string? From { get; set; }
+
+        public string? To { get; set; }
+
+        public string? Values { get; set; }
+
+        public bool Jumper { get; set; }
+
+        /// <summary>Updating the rows the table has, rather than adding new ones.</summary>
+        public bool Update { get; set; }
+
+        /// <summary>The fields ticked to be written to existing rows.</summary>
+        public List<string>? UpdateFields { get; set; }
+
+        /// <summary>The longest list kept: far more than anyone types.</summary>
+        public const int MaxValuesLength = 100_000;
+    }
+
     public sealed class EditingSettings
     {
         /// <summary>Edit is on in a tab that opens to stay (a temporary tab stays read-only).</summary>

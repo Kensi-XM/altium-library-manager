@@ -1177,6 +1177,7 @@ namespace Altium_Library_Manager
                 CloseTabs([tab]);
             _settings.Tables.ColumnWidths.Remove(name);
             _settings.Tables.SearchColumns.Remove(name);
+            _settings.Tables.AddElements.Remove(name);
             _store.RequestSave();
             if (TableList.ItemsSource is IEnumerable<string> tables)
             {

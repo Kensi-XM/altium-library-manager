@@ -31,6 +31,35 @@ namespace Altium_Library_Manager
             }
         }
 
+        private bool _update;
+        private bool _showUpdate;
+
+        /// <summary>When updating existing rows: this field is written to them.</summary>
+        public bool Update
+        {
+            get => _update;
+            set
+            {
+                if (_update == value)
+                    return;
+                _update = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Update)));
+            }
+        }
+
+        /// <summary>Existing rows are being updated, so the field's tick is shown.</summary>
+        public bool ShowUpdate
+        {
+            get => _showUpdate;
+            set
+            {
+                if (_showUpdate == value)
+                    return;
+                _showUpdate = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ShowUpdate)));
+            }
+        }
+
         public bool HasButton => Link != FieldLink.None;
 
         public string Glyph => FieldLinks.IsRef(Link) ? "" : "";
@@ -78,9 +107,21 @@ namespace Altium_Library_Manager
             var problems = new List<string>();
             var types = ElementTypes.Load(problems);
             KindCombo.ItemsSource = types;
-            KindCombo.SelectedItem = ElementTypes.ForTable(types, tab.Name) ?? types.FirstOrDefault(t => t.Name == "Other") ?? types[0];
+            // Rows are found by their Part Number: without one, there is nothing to update by
+            UpdateModeRadio.IsEnabled = _partNumberField != null;
+            var choice = App.Settings.Current.Tables.AddElements.GetValueOrDefault(tab.Name);
+            if (choice != null)
+            {
+                _ticked.UnionWith(choice.UpdateFields?.OfType<string>() ?? []);
+                UpdateModeRadio.IsChecked = choice.Update && _partNumberField != null;
+            }
+            KindCombo.SelectedItem = types.FirstOrDefault(t => t.Name == choice?.Type) ?? ElementTypes.ForTable(types, tab.Name) ??
+                                     types.FirstOrDefault(t => t.Name == "Other") ?? types[0];
             LoadType();
+            if (choice != null && choice.Type == Type.Name)
+                Restore(choice);
             _loading = false;
+            Closed += (_, _) => Remember();
             UpdateSource();
             Update();
             Loaded += (_, _) =>
@@ -93,6 +134,51 @@ namespace Altium_Library_Manager
         }
 
         private ElementType Type => (ElementType)KindCombo.SelectedItem;
+
+        /// <summary>Opens as it was last left for this table (see <see cref="Remember"/>); a series that no longer
+        /// exists keeps the type's own.</summary>
+        private void Restore(Services.Settings.AddElementsChoice choice)
+        {
+            var numbers = Type.Style != ElementStyle.Text;
+            if (numbers && ElementValues.AllSeries.FirstOrDefault(s => s.Name == choice.Series) is { } series)
+            {
+                SeriesCombo.SelectedItem = series;
+                _shownSeries = series.Name;
+                WithE24Check.IsChecked = choice.WithE24;
+                UpdateE24Check();
+            }
+            if (choice.From != null)
+                FromBox.Text = choice.From;
+            if (choice.To != null)
+                ToBox.Text = choice.To;
+            if (choice.Values != null)
+                ValuesList.Text = choice.Values;
+            SeriesRadio.IsChecked = numbers && !choice.List;
+            ListRadio.IsChecked = !numbers || choice.List;
+            JumperCheck.IsChecked = choice.Jumper;
+        }
+
+        /// <summary>Keeps how the window was left, by table: the type, the values and the ticks (not the fields,
+        /// which come from the table's rows each time; a type of its own keeps those, see Save as).</summary>
+        private void Remember()
+        {
+            if (KindCombo.SelectedItem is not ElementType type)
+                return;
+            App.Settings.Current.Tables.AddElements[_tab.Name] = new Services.Settings.AddElementsChoice
+            {
+                Type = type.Name,
+                List = ListRadio.IsChecked == true,
+                Series = (SeriesCombo.SelectedItem as SeriesInfo)?.Name,
+                WithE24 = WithE24Check.IsChecked == true,
+                From = FromBox.Text,
+                To = ToBox.Text,
+                Values = ValuesList.Text.Length <= Services.Settings.AddElementsChoice.MaxValuesLength ? ValuesList.Text : null,
+                Jumper = JumperCheck.IsChecked == true,
+                Update = Updating,
+                UpdateFields = [.. _ticked]
+            };
+            App.Settings.RequestSave();
+        }
 
         // Wide enough for a Ref and a Path side by side
         private const double FittedWidth = 1320;
@@ -132,6 +218,8 @@ namespace Altium_Library_Manager
             SeriesCombo.SelectedItem = ElementValues.AllSeries.FirstOrDefault(s => s.Name == series) ?? ElementValues.AllSeries[3];
             WithE24Check.IsChecked = type.Series.EndsWith("+E24", StringComparison.Ordinal);
             UpdateE24Check();
+            // Resistors only; hidden, not collapsed, for the others, so nothing moves
+            JumperCheck.Visibility = ElementValues.HasJumper(type) ? Visibility.Visible : Visibility.Hidden;
             FromBox.Text = type.From;
             ToBox.Text = type.To;
             ValuesList.Text = type.Values;
@@ -152,7 +240,9 @@ namespace Altium_Library_Manager
                 field.PropertyChanged -= Field_Changed;
             _fields.Clear();
 
-            var row = _tab.SelectedRow?.Row;
+            // The selected row, or else the first one shown: the fields start from a row of the table either way
+            var row = _tab.SelectedRow?.Row ?? _tab.Grid.Items.OfType<DataRowView>().Select(v => v.Row)
+                .FirstOrDefault(r => r.RowState is not (DataRowState.Deleted or DataRowState.Detached));
             var table = _tab.Table!;
             var valueColumn = type.ValueFields.Select(n => AccessDatabase.FindColumn(table, n)).OfType<DataColumn>().FirstOrDefault();
             _valueField = valueColumn?.ColumnName;
@@ -184,6 +274,7 @@ namespace Altium_Library_Manager
             _fields.AddRange(fields.Except(leading).OrderBy(f => f.Pattern.Length == 0));
             foreach (var field in _fields)
                 field.PropertyChanged += Field_Changed;
+            ShowTicks();
             FieldList.ItemsSource = ElementFieldGroups.Build(_fields, _partNumberField, _valueField);
             FieldScroller.ScrollToTop();
             var source = row != null && _partNumberField != null ? Convert.ToString(row[_partNumberField]) : null;
@@ -252,13 +343,27 @@ namespace Altium_Library_Manager
             WithE24Check.Visibility = ElementValues.CanAddE24(name) ? Visibility.Visible : Visibility.Hidden;
         }
 
+        private bool WithJumper => JumperCheck.IsChecked == true && ElementValues.HasJumper(Type);
+
         private string SelectedSeries()
         {
             var name = ((SeriesInfo)SeriesCombo.SelectedItem).Name;
             return ElementValues.CanAddE24(name) && WithE24Check.IsChecked == true ? name + "+E24" : name;
         }
 
-        private void Field_Changed(object? sender, PropertyChangedEventArgs e) => Update();
+        private void Field_Changed(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(ElementField.ShowUpdate))
+                return;
+            if (!_loading && sender is ElementField field && e.PropertyName == nameof(ElementField.Update))
+            {
+                if (field.Update)
+                    _ticked.Add(field.Name);
+                else
+                    _ticked.Remove(field.Name);
+            }
+            Update();
+        }
 
         /// <summary>The values asked for, or why there are none.</summary>
         private (List<ElementValue> Values, string? Problem) Values()
@@ -271,7 +376,9 @@ namespace Altium_Library_Manager
             if (ElementValues.Parse(type, ToBox.Text) is not { } to)
                 return ([], "\"To\" isn't a value of this element.");
             if (from <= 0 || to < from)
-                return ([], "\"From\" has to be above zero, and not above \"To\".");
+                return ([], ElementValues.HasJumper(type) && from == 0
+                    ? "\"From\" has to be above zero; for a 0 Ohm jumper, tick \"+ 0 Ohm jumper\"."
+                    : "\"From\" has to be above zero, and not above \"To\".");
             return (ElementValues.Series(SelectedSeries(), from, to).Select(v => ElementValues.Format(type, v)).ToList(), null);
         }
 
@@ -282,11 +389,22 @@ namespace Altium_Library_Manager
             if (_loading)
                 return;
             var (values, problem) = Values();
+            // The jumper comes first, as 0 is the smallest value. In a table that has the values already, they are left
+            // out as they are, and only the jumper is added.
+            var jumpers = WithJumper ? 1 : 0;
+            if (jumpers > 0)
+                values.Insert(0, ElementValues.Jumper(Type));
             ValuesHint.Text = Type.Style == ElementStyle.Text ? $"{values.Count} values." : $"A bare number means {Type.BareUnit}. {values.Count} values.";
             if (values.Count > ElementValues.MaxValues)
             {
                 problem = $"That's {values.Count} values; at most {ElementValues.MaxValues} can be added at once.";
                 values = [];
+            }
+
+            if (Updating)
+            {
+                ShowUpdates(values, jumpers, problem);
+                return;
             }
 
             var columns = _tab.NewRowColumns().ToDictionary(c => c.ColumnName, StringComparer.OrdinalIgnoreCase);
@@ -296,7 +414,9 @@ namespace Altium_Library_Manager
             var skipped = 0;
             for (var i = 0; i < values.Count; i++)
             {
-                var row = _fields.ToDictionary(f => f.Name, f => ElementValues.Apply(f.Pattern, values[i], i + 1), StringComparer.OrdinalIgnoreCase);
+                var (value, number) = (values[i], i + 1);
+                var row = _fields.ToDictionary(f => f.Name, f => i < jumpers ? ElementValues.ApplyJumper(f.Pattern, value, number) : ElementValues.Apply(f.Pattern, value, number),
+                    StringComparer.OrdinalIgnoreCase);
                 var partNumber = _partNumberField != null ? row.GetValueOrDefault(_partNumberField, "").Trim() : "";
                 string note;
                 if (_partNumberField != null && partNumber.Length == 0)
@@ -340,9 +460,130 @@ namespace Altium_Library_Manager
 
         private void Add_Click(object sender, RoutedEventArgs e)
         {
-            _tab.AddRows(_rows);
+            if (Updating)
+            {
+                if (_tab.UpdateRows(_updates) is { } problem)
+                {
+                    ErrorText.Text = problem;
+                    ErrorText.ToolTip = problem;
+                    return;
+                }
+            }
+            else
+                _tab.AddRows(_rows);
             Close();
         }
+
+        #region Updating existing rows
+
+        private List<(DataRow Row, IReadOnlyDictionary<string, string> Fields)> _updates = [];
+        private Dictionary<string, List<DataRow>>? _existing;
+        // The ticked fields, kept while the fields are made again for another type
+        private readonly HashSet<string> _ticked = new(StringComparer.OrdinalIgnoreCase);
+
+        private bool Updating => UpdateModeRadio.IsChecked == true;
+
+        private void Mode_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_loading)
+                return;
+            ShowTicks();
+            Update();
+        }
+
+        private void ShowTicks()
+        {
+            var loading = _loading;
+            _loading = true;
+            foreach (var field in _fields)
+            {
+                // Rows are found by their Part Number, so it isn't one of the fields to change
+                field.ShowUpdate = Updating && field.Name != _partNumberField;
+                field.Update = _ticked.Contains(field.Name);
+            }
+            _loading = loading;
+        }
+
+        /// <summary>
+        /// Updating: the rows the table has with these values' Part Numbers, each with the ticked fields' texts, and
+        /// what would change in it. Several rows with one Part Number all get them.
+        /// </summary>
+        private void ShowUpdates(List<ElementValue> values, int jumpers, string? problem)
+        {
+            _existing ??= _tab.RowsByPartNumber();
+            var ticked = _fields.Where(f => f.Update && f.Name != _partNumberField).ToList();
+            if (ticked.Count == 0)
+                problem ??= "Tick the fields to change in the existing rows (the boxes next to them).";
+            var columns = _tab.NewRowColumns().ToDictionary(c => c.ColumnName, StringComparer.OrdinalIgnoreCase);
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var updates = new List<(DataRow, IReadOnlyDictionary<string, string>)>();
+            var preview = new List<ElementRow>();
+            var (missing, same) = (0, 0);
+            for (var i = 0; i < values.Count; i++)
+            {
+                var (value, number) = (values[i], i + 1);
+                string Text(ElementField f) => i < jumpers ? ElementValues.ApplyJumper(f.Pattern, value, number) : ElementValues.Apply(f.Pattern, value, number);
+                var partNumber = _partNumberField != null && _fields.FirstOrDefault(f => f.Name == _partNumberField) is { } pn ? Text(pn).Trim() : "";
+                var fields = ticked.ToDictionary(f => f.Name, Text, StringComparer.OrdinalIgnoreCase);
+                var shownValue = _valueField != null && _fields.FirstOrDefault(f => f.Name == _valueField) is { } v ? Text(v) : value.Code;
+                if (!seen.Add(partNumber))
+                {
+                    preview.Add(new ElementRow(partNumber, shownValue, "", "Same as a row above"));
+                    continue;
+                }
+                if (!_existing.TryGetValue(partNumber, out var rows))
+                {
+                    missing++;
+                    preview.Add(new ElementRow(partNumber, shownValue, "", "Not in the table"));
+                    continue;
+                }
+                var wrong = fields.Select(p => columns.TryGetValue(p.Key, out var c) ? _tab.NewValueProblem(c, p.Value) : null).FirstOrDefault(p => p != null);
+                foreach (var row in rows)
+                {
+                    var description = _descriptionField == null ? ""
+                        : fields.TryGetValue(_descriptionField, out var text) ? text : Convert.ToString(row[_descriptionField]) ?? "";
+                    string note;
+                    if (wrong != null)
+                    {
+                        problem ??= wrong;
+                        note = "Can't be changed";
+                    }
+                    else if (_tab.ChangedFields(row, fields) is { Count: > 0 } changed)
+                    {
+                        // A ticked field left empty empties the rows' field: said apart, so it isn't missed
+                        var cleared = changed.Where(name => fields[name].Trim().Length == 0).ToList();
+                        var set = changed.Except(cleared).ToList();
+                        note = string.Join("; ", new[]
+                        {
+                            set.Count > 0 ? "Changes " + string.Join(", ", set) : null,
+                            cleared.Count > 0 ? "Clears " + string.Join(", ", cleared) : null
+                        }.OfType<string>());
+                        updates.Add((row, fields));
+                    }
+                    else
+                    {
+                        note = "Already like this";
+                        same++;
+                    }
+                    preview.Add(new ElementRow(partNumber, shownValue, description, note));
+                }
+            }
+
+            _updates = updates;
+            PreviewGrid.ItemsSource = preview;
+            var parts = new List<string> { $"{updates.Count} to change" };
+            if (same > 0)
+                parts.Add($"{same} already like this");
+            if (missing > 0)
+                parts.Add($"{missing} not in the table");
+            PreviewTitle.Text = $"Rows: {string.Join(", ", parts)}";
+            AddButton.Content = updates.Count == 1 ? "Update 1 row" : $"Update {updates.Count} rows";
+            AddButton.IsEnabled = updates.Count > 0 && problem == null;
+            ErrorText.Text = problem ?? "";
+            ErrorText.ToolTip = problem;
+        }
+
+        #endregion
 
         #region Type files
 

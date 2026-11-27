@@ -282,6 +282,99 @@ namespace Altium_Library_Manager
             SelectRow(steps[0].Row);
         }
 
+        /// <summary>The rows of the table by Part Number (trimmed, case ignored), without rows deleted but not saved.
+        /// Empty when the table has no Part Number field.</summary>
+        public Dictionary<string, List<DataRow>> RowsByPartNumber()
+        {
+            var rows = new Dictionary<string, List<DataRow>>(StringComparer.OrdinalIgnoreCase);
+            if (Table == null || PartNumberColumn is not { } pn)
+                return rows;
+            foreach (DataRow row in Table.Rows)
+                if (row.RowState is not (DataRowState.Deleted or DataRowState.Detached) && (row[pn] as string)?.Trim() is { Length: > 0 } name)
+                {
+                    if (!rows.TryGetValue(name, out var list))
+                        rows[name] = list = [];
+                    list.Add(row);
+                }
+            return rows;
+        }
+
+        // A field's text as the value it would be stored as (as AddRows and ChangeRow store it); null if it can't be
+        private object? StoredValue(DataColumn column, string text) =>
+            ParseField(column, text, out var value) != null ? null
+                : value is string { Length: 0 } && FieldOf(column.ColumnName) is not { Required: true } ? DBNull.Value : value;
+
+        /// <summary>Which of these fields would change in the row: the names of those whose text gives another value
+        /// than the row has. Fields Access fills, and texts that can't be stored, are left out.</summary>
+        public List<string> ChangedFields(DataRow row, IReadOnlyDictionary<string, string> fields)
+        {
+            var changed = new List<string>();
+            if (Table == null || row.Table != Table || row.RowState is DataRowState.Deleted or DataRowState.Detached)
+                return changed;
+            foreach (var (name, text) in fields)
+                if (Table.Columns[name] is { } column && !IsReadOnlyColumn(column.ColumnName) && StoredValue(column, text) is { } value &&
+                    !Equals(row[column], value))
+                    changed.Add(column.ColumnName);
+            return changed;
+        }
+
+        /// <summary>
+        /// Changes fields of existing rows (Add elements, updating), as one step of the history: each row gets its own
+        /// texts (checked with <see cref="NewValueProblem"/>). Rows no longer in the table, and fields that would stay
+        /// as they are, are passed over. Returns why nothing was changed, or null.
+        /// </summary>
+        public string? UpdateRows(IReadOnlyList<(DataRow Row, IReadOnlyDictionary<string, string> Fields)> rows)
+        {
+            if (Table == null || rows.Count == 0)
+                return null;
+            if (!TryFinishEditing(Window.GetWindow(View)))
+                return "Another row is being edited.";
+
+            var steps = new List<RowStep>();
+            var seen = new HashSet<DataRow>();
+            var pn = PartNumberColumn;
+            _partNumbers = CountPartNumbers();
+            try
+            {
+                foreach (var (row, fields) in rows)
+                {
+                    if (row.Table != Table || row.RowState is DataRowState.Deleted or DataRowState.Detached || !seen.Add(row))
+                        continue;
+                    var before = Snapshot(row, DataRowVersion.Current);
+                    var after = (object[])before.Values.Clone();
+                    foreach (var (name, text) in fields)
+                        if (Table.Columns[name] is { } column && !IsReadOnlyColumn(column.ColumnName) && StoredValue(column, text) is { } value)
+                            after[column.Ordinal] = value;
+                    var partNumberChanged = pn != null && !Equals(after[pn.Ordinal], before.Values[pn.Ordinal]);
+                    if (RowProblem(row, c => after[c.Ordinal], partNumberChanged) is { } problem)
+                        return $"{RowTitle(row)}: {problem}";
+                    var snapshot = new RowSnapshot(true, after);
+                    if (!snapshot.SameAs(before))
+                        steps.Add(new RowStep(row, before, snapshot));
+                }
+            }
+            finally
+            {
+                _partNumbers = null;
+            }
+            if (steps.Count == 0)
+                return null;
+
+            Mouse.OverrideCursor = Cursors.Wait;
+            try
+            {
+                foreach (var step in steps)
+                    Apply(step.Row, step.After);
+            }
+            finally
+            {
+                Mouse.OverrideCursor = null;
+            }
+            Record(steps.Count == 1 ? $"Update row {RowTitle(steps[0].Row)}" : $"Update {steps.Count} rows", steps);
+            SelectRow(steps[0].Row);
+            return null;
+        }
+
         #endregion
 
         #region Changing the selected cells

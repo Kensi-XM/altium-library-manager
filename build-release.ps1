@@ -1,6 +1,6 @@
 # Builds the Windows release: a self-contained program (no .NET to install) and, with Inno Setup 6, its installer.
-#   .\build-release.ps1 -Version 1.0.3
-param([string]$Version = '1.0.3')
+#   .\build-release.ps1 -Version 1.0.4
+param([string]$Version = '1.0.4')
 
 $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot

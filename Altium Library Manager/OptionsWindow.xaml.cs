@@ -203,6 +203,7 @@ namespace Altium_Library_Manager
             {
                 ColumnWidths = tables.ColumnWidths,
                 SearchColumns = tables.SearchColumns,
+                AddElements = tables.AddElements,
                 DetailsFieldWidth = tables.DetailsFieldWidth
             };
             // The settings don't announce changes: the controls read them again

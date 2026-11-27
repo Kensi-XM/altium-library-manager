@@ -2,7 +2,7 @@
 ; Installs for the current user, so it needs no administrator rights.
 
 #ifndef AppVersion
-  #define AppVersion "1.0.3"
+  #define AppVersion "1.0.4"
 #endif
 #ifndef PublishDir
   #define PublishDir "..\publish\win-x64"

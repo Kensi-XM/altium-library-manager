@@ -190,6 +190,18 @@ namespace Altium_Library_Manager.Services.Settings
                 else
                     columns.RemoveAll(c => c == null);
             }
+            tables.AddElements ??= [];
+            foreach (var (table, choice) in tables.AddElements.ToList())
+            {
+                if (choice == null)
+                    tables.AddElements.Remove(table);
+                else
+                {
+                    if (choice.Values?.Length > AddElementsChoice.MaxValuesLength)
+                        choice.Values = null;
+                    choice.UpdateFields?.RemoveAll(f => f == null);
+                }
+            }
 
             var editing = settings.Editing;
             editing.UndoSteps = (int)InRange(editing.UndoSteps, EditingSettings.MinUndoSteps, EditingSettings.MaxUndoSteps, EditingSettings.MaxUndoSteps);

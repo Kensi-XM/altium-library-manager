@@ -39,13 +39,13 @@ namespace Altium_Library_Manager.Services
         /// <summary>More rows than anyone adds at once, and few enough to stay quick.</summary>
         public const int MaxValues = 5000;
 
-        /// <summary>The E series (IEC 60063) with the tolerance each is made for, and two other common steps.</summary>
         /// <summary>A series a type file may name: one of <see cref="AllSeries"/>, or E48, E96 or E192 with "+E24".</summary>
         public static bool IsKnownSeries(string series) => AllSeries.Any(s => s.Name == series) || series is "E48+E24" or "E96+E24" or "E192+E24";
 
         /// <summary>The series that lack the E24 values (no 4.7 or 3.3), which can be added to them.</summary>
         public static bool CanAddE24(string series) => series is "E48" or "E96" or "E192";
 
+        /// <summary>The E series (IEC 60063) with the tolerance each is made for, and two other common steps.</summary>
         public static readonly IReadOnlyList<SeriesInfo> AllSeries =
         [
             new("E3", "E3 (over 20%)"),
@@ -215,6 +215,29 @@ namespace Altium_Library_Manager.Services
             .Replace("{Text}", value.Text, StringComparison.Ordinal)
             .Replace("{Short}", value.Short, StringComparison.Ordinal)
             .Replace("{N}", number.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal);
+
+        /// <summary>Elements of this type can be a 0 Ohm jumper (a resistor's footprint and symbol, no resistance).</summary>
+        public static bool HasJumper(ElementType type) => type.Unit == "Ohm" && type.Style != ElementStyle.Text;
+
+        /// <summary>The jumper's value: 0R, 0 Ohm.</summary>
+        public static ElementValue Jumper(ElementType type) => Format(type, 0);
+
+        // A tolerance as a word of its own: 1%, 0.1 %, ±5%
+        private static readonly Regex Tolerance = new(@"\s*(?<![\p{L}\p{N}.,/])±?\d+(?:[.,]\d+)?\s?%(?![\p{L}\p{N}])");
+
+        /// <summary>
+        /// A field's text for the jumper. Where the value is written out ({Text}, {Short}: the description), it says
+        /// "Jumper" and loses its tolerance, which a jumper hasn't: "RES SMD {Text} 1% 1/20W 0201" gives
+        /// "RES SMD 0 Ohm Jumper 1/20W 0201". Codes ({Value}: 0R_0201) and other fields are as for any value.
+        /// </summary>
+        public static string ApplyJumper(string pattern, ElementValue jumper, int number)
+        {
+            if (!pattern.Contains("{Text}", StringComparison.Ordinal) && !pattern.Contains("{Short}", StringComparison.Ordinal))
+                return Apply(pattern, jumper, number);
+            var text = Apply(pattern.Replace("{Text}", "{Text} Jumper", StringComparison.Ordinal)
+                .Replace("{Short}", "{Short} Jumper", StringComparison.Ordinal), jumper, number);
+            return Tolerance.Replace(text, "").Trim();
+        }
 
         /// <summary>
         /// Turns a field of an existing element into a pattern: its value, however written, becomes a placeholder

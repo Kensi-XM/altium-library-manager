@@ -65,6 +65,18 @@ namespace Altium_Library_Manager.Tests
                 Equal(@"D:\Other\a.pdf", FieldLinks.StoredPath(@"D:\Other\a.pdf", @"C:\Lib", null), "outside the folder: as it is");
                 Equal(@"C:\a.pdf", FieldLinks.StoredPath(@"C:\a.pdf", @"C:\Lib", null), "above the folder: as it is");
             });
+            Test("the jumper's texts", () =>
+            {
+                var resistor = BuiltInElementTypes.All().First(t => t.Name == "Resistor");
+                var zero = ElementValues.Jumper(resistor);
+                Equal("0R", zero.Code, "code");
+                Equal("RES SMD 0 Ohm Jumper 1/20W 0201", ElementValues.ApplyJumper("RES SMD {Text} 1% 1/20W 0201", zero, 1), "the description of the table");
+                Equal("RES 0Ohm Jumper 0402", ElementValues.ApplyJumper("RES {Short} ±0.1 % 0402", zero, 1), "short form, ± tolerance");
+                Equal("0R_0201", ElementValues.ApplyJumper("{Value}_0201", zero, 1), "codes as they are");
+                Equal("1%", ElementValues.ApplyJumper("1%", zero, 1), "a field without the value keeps its text");
+                Equal("RES 0 Ohm Jumper 100%RH 1/20W", ElementValues.ApplyJumper("RES {Text} 5% 100%RH 1/20W", zero, 1), "only a tolerance word goes");
+                True(ElementValues.HasJumper(resistor) && !ElementValues.HasJumper(BuiltInElementTypes.All().First(t => t.Name == "Capacitor, ceramic")), "resistors only");
+            });
             Test("the precision resistor starts with the E24 values in", () =>
                 Equal("E96+E24", BuiltInElementTypes.All().First(t => t.Name == "Resistor, precision").Series, "series"));
         }
