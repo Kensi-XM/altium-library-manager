@@ -1,2 +1,3 @@
-# The build checks these files against pinned hashes: git must not change their line endings
-* -text
+# The build checks these files against pinned hashes: git must not change their line endings.
+# They are third-party libraries (three.js, occt-import-js), so GitHub leaves them out of the language stats.
+* -text linguist-vendored
